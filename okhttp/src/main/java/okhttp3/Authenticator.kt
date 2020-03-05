@@ -96,23 +96,24 @@ import java.io.IOException
  * [1]: https://tools.ietf.org/html/rfc2817
  */
 interface Authenticator {
-  /**
-   * Returns a request that includes a credential to satisfy an authentication challenge in
-   * [response]. Returns null if the challenge cannot be satisfied.
-   *
-   * The route is best effort, it currently may not always be provided even when logically
-   * available. It may also not be provided when an authenticator is re-used manually in an
-   * application interceptor, such as when implementing client-specific retries.
-   */
-  @Throws(IOException::class)
-  fun authenticate(route: Route?, response: Response): Request?
+    /**
+     * Returns a request that includes a credential to satisfy an authentication challenge in
+     * [response]. Returns null if the challenge cannot be satisfied.
+     *
+     * The route is best effort, it currently may not always be provided even when logically
+     * available. It may also not be provided when an authenticator is re-used manually in an
+     * application interceptor, such as when implementing client-specific retries.
+     */
+    @Throws(IOException::class)
+    fun authenticate(route: Route?, response: Response): Request?
 
-  companion object {
-    /** An authenticator that knows no credentials and makes no attempt to authenticate. */
-    @JvmField
-    val NONE: Authenticator = AuthenticatorNone()
-    private class AuthenticatorNone : Authenticator {
-      override fun authenticate(route: Route?, response: Response): Request? = null
+    companion object {
+        /** An authenticator that knows no credentials and makes no attempt to authenticate. */
+        @JvmField
+        val NONE: Authenticator = AuthenticatorNone()
+
+        private class AuthenticatorNone : Authenticator {
+            override fun authenticate(route: Route?, response: Response): Request? = null
+        }
     }
-  }
 }
