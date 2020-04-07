@@ -19,55 +19,56 @@ import java.io.IOException
 import java.util.concurrent.TimeUnit
 
 /**
- * Observes, modifies, and potentially short-circuits requests going out and the corresponding
- * responses coming back in. Typically interceptors add, remove, or transform headers on the request
- * or response.
+ * Observes, modifies, and potentially short-circuits requests going out and the corresponding responses coming back in.
+ * 观察，修改请求，并可能使发出的请求和返回的响应短路。
+ * Typically interceptors add, remove, or transform headers on the request or response.
+ * 例如可以通过添加拦截器来添加header、转换请求等。
  */
 interface Interceptor {
-  @Throws(IOException::class)
-  fun intercept(chain: Chain): Response
-
-  companion object {
-    /**
-     * Constructs an interceptor for a lambda. This compact syntax is most useful for inline
-     * interceptors.
-     *
-     * ```
-     * val interceptor = Interceptor { chain: Interceptor.Chain ->
-     *     chain.proceed(chain.request())
-     * }
-     * ```
-     */
-    inline operator fun invoke(crossinline block: (chain: Chain) -> Response): Interceptor =
-        object : Interceptor {
-          override fun intercept(chain: Chain) = block(chain)
-        }
-  }
-
-  interface Chain {
-    fun request(): Request
-
     @Throws(IOException::class)
-    fun proceed(request: Request): Response
+    fun intercept(chain: Chain): Response
 
-    /**
-     * Returns the connection the request will be executed on. This is only available in the chains
-     * of network interceptors; for application interceptors this is always null.
-     */
-    fun connection(): Connection?
+    companion object {
+        /**
+         * Constructs an interceptor for a lambda. This compact syntax is most useful for inline
+         * interceptors.
+         *
+         * ```
+         * val interceptor = Interceptor { chain: Interceptor.Chain ->
+         *     chain.proceed(chain.request())
+         * }
+         * ```
+         */
+        inline operator fun invoke(crossinline block: (chain: Chain) -> Response): Interceptor =
+                object : Interceptor {
+                    override fun intercept(chain: Chain) = block(chain)
+                }
+    }
 
-    fun call(): Call
+    interface Chain {
+        fun request(): Request
 
-    fun connectTimeoutMillis(): Int
+        @Throws(IOException::class)
+        fun proceed(request: Request): Response
 
-    fun withConnectTimeout(timeout: Int, unit: TimeUnit): Chain
+        /**
+         * Returns the connection the request will be executed on. This is only available in the chains
+         * of network interceptors; for application interceptors this is always null.
+         */
+        fun connection(): Connection?
 
-    fun readTimeoutMillis(): Int
+        fun call(): Call
 
-    fun withReadTimeout(timeout: Int, unit: TimeUnit): Chain
+        fun connectTimeoutMillis(): Int
 
-    fun writeTimeoutMillis(): Int
+        fun withConnectTimeout(timeout: Int, unit: TimeUnit): Chain
 
-    fun withWriteTimeout(timeout: Int, unit: TimeUnit): Chain
-  }
+        fun readTimeoutMillis(): Int
+
+        fun withReadTimeout(timeout: Int, unit: TimeUnit): Chain
+
+        fun writeTimeoutMillis(): Int
+
+        fun withWriteTimeout(timeout: Int, unit: TimeUnit): Chain
+    }
 }

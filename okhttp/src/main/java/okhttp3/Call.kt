@@ -19,81 +19,78 @@ import java.io.IOException
 import okio.Timeout
 
 /**
- * A call is a request that has been prepared for execution. A call can be canceled. As this object
- * represents a single request/response pair (stream), it cannot be executed twice.
+ * Call就是一个已经准备好执行的请求。
+ * Call接口封装了一对request/response（在HTTP/2中是1个流），它只能被执行一次。
  */
 interface Call : Cloneable {
-  /** Returns the original request that initiated this call. */
-  fun request(): Request
+    /** 当前Call封装的Request. */
+    fun request(): Request
 
-  /**
-   * Invokes the request immediately, and blocks until the response can be processed or is in error.
-   *
-   * To avoid leaking resources callers should close the [Response] which in turn will close the
-   * underlying [ResponseBody].
-   *
-   * ```
-   * // ensure the response (and underlying response body) is closed
-   * try (Response response = client.newCall(request).execute()) {
-   *   ...
-   * }
-   * ```
-   *
-   * The caller may read the response body with the response's [Response.body] method. To avoid
-   * leaking resources callers must [close the response body][ResponseBody] or the response.
-   *
-   * Note that transport-layer success (receiving a HTTP response code, headers and body) does not
-   * necessarily indicate application-layer success: `response` may still indicate an unhappy HTTP
-   * response code like 404 or 500.
-   *
-   * @throws IOException if the request could not be executed due to cancellation, a connectivity
-   *     problem or timeout. Because networks can fail during an exchange, it is possible that the
-   *     remote server accepted the request before the failure.
-   * @throws IllegalStateException when the call has already been executed.
-   */
-  @Throws(IOException::class)
-  fun execute(): Response
+    /**
+     *
+     * 同步调用，会阻塞当前线程直到有数据响应或者是有error。
+     *
+     * 为了避免资源泄露，调用方应该主动关闭[Response]，这同时会关闭底层的[ResponseBody]
+     *
+     * // 确保response被关闭
+     * try (Response response = client.newCall(request).execute()) {
+     *   ...
+     * }
+     * ```
+     *
+     * The caller may read the response body with the response's [Response.body] method. To avoid
+     * leaking resources callers must [close the response body][ResponseBody] or the response.
+     *
+     * 注意：传输层成功（接受到HTTP响应码，headers和body）不代表应用层成功，因为可能返回的是404或者500这样的，实际上对应用层来说是请求失败的。
+     *
+     * @throws IOException 如果请求因为被取消、连接问题、超时等原因不能被成功执行，就会抛出这个异常。这表示的是服务端可能已经接受到了请求，但是这次请求客户端判定为失败了。
+     * @throws IllegalStateException 重复执行一个已经被执行过的请求时
+     */
+    @Throws(IOException::class)
+    fun execute(): Response
 
-  /**
-   * Schedules the request to be executed at some point in the future.
-   *
-   * The [dispatcher][OkHttpClient.dispatcher] defines when the request will run: usually
-   * immediately unless there are several other requests currently being executed.
-   *
-   * This client will later call back `responseCallback` with either an HTTP response or a failure
-   * exception.
-   *
-   * @throws IllegalStateException when the call has already been executed.
-   */
-  fun enqueue(responseCallback: Callback)
+    /**
+     * 在未来的某个时间点执行请求。
+     *
+     * 【dispatcher][OkHttpClient.dispatcher]决定了请求什么时候被执行。通常是立即执行，除非是当前有很多其他请求正在执行。
+     *
+     * 执行完成或者失败之后会回调responseCallback.
+     *
+     * @throws IllegalStateException when the call has already been executed.
+     */
+    fun enqueue(responseCallback: Callback)
 
-  /** Cancels the request, if possible. Requests that are already complete cannot be canceled. */
-  fun cancel()
+    /** 取消当前请求。已经执行完毕的请求不能取消 */
+    fun cancel()
 
-  /**
-   * Returns true if this call has been either [executed][execute] or [enqueued][enqueue]. It is an
-   * error to execute a call more than once.
-   */
-  fun isExecuted(): Boolean
+    /**
+     * Returns true if this call has been either [executed][execute] or [enqueued][enqueue]. It is an
+     * error to execute a call more than once.
+     */
+    fun isExecuted(): Boolean
 
-  fun isCanceled(): Boolean
+    fun isCanceled(): Boolean
 
-  /**
-   * Returns a timeout that spans the entire call: resolving DNS, connecting, writing the request
-   * body, server processing, and reading the response body. If the call requires redirects or
-   * retries all must complete within one timeout period.
-   *
-   * Configure the client's default timeout with [OkHttpClient.Builder.callTimeout].
-   */
-  fun timeout(): Timeout
+    /**
+     * 这里的超时是针对的整个过程：
+     *  1.DNS解析
+     *  2.建立连接
+     *  3.写入请求体
+     *  4.服务器处理
+     *  5.读取响应
+     *
+     *  如果有重定向和重试的话，时间也包含在这个timeout之内。
+     *
+     * 相匹配的是这个参数：[OkHttpClient.Builder.callTimeout].
+     */
+    fun timeout(): Timeout
 
-  /**
-   * Create a new, identical call to this one which can be enqueued or executed even if this call
-   * has already been.
-   */
-  public override fun clone(): Call
+    /**
+     * 重新创建一个请求，性能当然比new一个要好
+     */
+    public override fun clone(): Call
 
-  interface Factory {
-    fun newCall(request: Request): Call
-  }
+    interface Factory {
+        fun newCall(request: Request): Call
+    }
 }

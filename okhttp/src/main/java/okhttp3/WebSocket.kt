@@ -50,71 +50,71 @@ import okio.ByteString
  * its incoming messages.
  */
 interface WebSocket {
-  /** Returns the original request that initiated this web socket. */
-  fun request(): Request
+    /** Returns the original request that initiated this web socket. */
+    fun request(): Request
 
-  /**
-   * Returns the size in bytes of all messages enqueued to be transmitted to the server. This
-   * doesn't include framing overhead. It also doesn't include any bytes buffered by the operating
-   * system or network intermediaries. This method returns 0 if no messages are waiting in the
-   * queue. If may return a nonzero value after the web socket has been canceled; this indicates
-   * that enqueued messages were not transmitted.
-   */
-  fun queueSize(): Long
-
-  /**
-   * Attempts to enqueue `text` to be UTF-8 encoded and sent as a the data of a text (type `0x1`)
-   * message.
-   *
-   * This method returns true if the message was enqueued. Messages that would overflow the outgoing
-   * message buffer will be rejected and trigger a [graceful shutdown][close] of this web socket.
-   * This method returns false in that case, and in any other case where this web socket is closing,
-   * closed, or canceled.
-   *
-   * This method returns immediately.
-   */
-  fun send(text: String): Boolean
-
-  /**
-   * Attempts to enqueue `bytes` to be sent as a the data of a binary (type `0x2`) message.
-   *
-   * This method returns true if the message was enqueued. Messages that would overflow the outgoing
-   * message buffer (16 MiB) will be rejected and trigger a [graceful shutdown][close] of this web
-   * socket. This method returns false in that case, and in any other case where this web socket is
-   * closing, closed, or canceled.
-   *
-   * This method returns immediately.
-   */
-  fun send(bytes: ByteString): Boolean
-
-  /**
-   * Attempts to initiate a graceful shutdown of this web socket. Any already-enqueued messages will
-   * be transmitted before the close message is sent but subsequent calls to [send] will return
-   * false and their messages will not be enqueued.
-   *
-   * This returns true if a graceful shutdown was initiated by this call. It returns false if
-   * a graceful shutdown was already underway or if the web socket is already closed or canceled.
-   *
-   * @param code Status code as defined by
-   *     [Section 7.4 of RFC 6455](http://tools.ietf.org/html/rfc6455#section-7.4).
-   * @param reason Reason for shutting down or null.
-   * @throws IllegalArgumentException if code is invalid.
-   */
-  fun close(code: Int, reason: String?): Boolean
-
-  /**
-   * Immediately and violently release resources held by this web socket, discarding any enqueued
-   * messages. This does nothing if the web socket has already been closed or canceled.
-   */
-  fun cancel()
-
-  interface Factory {
     /**
-     * Creates a new web socket and immediately returns it. Creating a web socket initiates an
-     * asynchronous process to connect the socket. Once that succeeds or fails, `listener` will be
-     * notified. The caller must either close or cancel the returned web socket when it is no longer
-     * in use.
+     * Returns the size in bytes of all messages enqueued to be transmitted to the server. This
+     * doesn't include framing overhead. It also doesn't include any bytes buffered by the operating
+     * system or network intermediaries. This method returns 0 if no messages are waiting in the
+     * queue. If may return a nonzero value after the web socket has been canceled; this indicates
+     * that enqueued messages were not transmitted.
      */
-    fun newWebSocket(request: Request, listener: WebSocketListener): WebSocket
-  }
+    fun queueSize(): Long
+
+    /**
+     * Attempts to enqueue `text` to be UTF-8 encoded and sent as a the data of a text (type `0x1`)
+     * message.
+     *
+     * This method returns true if the message was enqueued. Messages that would overflow the outgoing
+     * message buffer will be rejected and trigger a [graceful shutdown][close] of this web socket.
+     * This method returns false in that case, and in any other case where this web socket is closing,
+     * closed, or canceled.
+     *
+     * This method returns immediately.
+     */
+    fun send(text: String): Boolean
+
+    /**
+     * Attempts to enqueue `bytes` to be sent as a the data of a binary (type `0x2`) message.
+     *
+     * This method returns true if the message was enqueued. Messages that would overflow the outgoing
+     * message buffer (16 MiB) will be rejected and trigger a [graceful shutdown][close] of this web
+     * socket. This method returns false in that case, and in any other case where this web socket is
+     * closing, closed, or canceled.
+     *
+     * This method returns immediately.
+     */
+    fun send(bytes: ByteString): Boolean
+
+    /**
+     * Attempts to initiate a graceful shutdown of this web socket. Any already-enqueued messages will
+     * be transmitted before the close message is sent but subsequent calls to [send] will return
+     * false and their messages will not be enqueued.
+     *
+     * This returns true if a graceful shutdown was initiated by this call. It returns false if
+     * a graceful shutdown was already underway or if the web socket is already closed or canceled.
+     *
+     * @param code Status code as defined by
+     *     [Section 7.4 of RFC 6455](http://tools.ietf.org/html/rfc6455#section-7.4).
+     * @param reason Reason for shutting down or null.
+     * @throws IllegalArgumentException if code is invalid.
+     */
+    fun close(code: Int, reason: String?): Boolean
+
+    /**
+     * Immediately and violently release resources held by this web socket, discarding any enqueued
+     * messages. This does nothing if the web socket has already been closed or canceled.
+     */
+    fun cancel()
+
+    interface Factory {
+        /**
+         * Creates a new web socket and immediately returns it. Creating a web socket initiates an
+         * asynchronous process to connect the socket. Once that succeeds or fails, `listener` will be
+         * notified. The caller must either close or cancel the returned web socket when it is no longer
+         * in use.
+         */
+        fun newWebSocket(request: Request, listener: WebSocketListener): WebSocket
+    }
 }
