@@ -21,39 +21,40 @@ import okhttp3.internal.concurrent.TaskRunner
 import okhttp3.internal.connection.RealConnectionPool
 
 /**
- * Manages reuse of HTTP and HTTP/2 connections for reduced network latency. HTTP requests that
- * share the same [Address] may share a [Connection]. This class implements the policy
- * of which connections to keep open for future use.
+ * 管理HTTP 和 HTTP/2的连接重用，减少网络延迟。
+ * 共享[Address]的HTTP请求会共享一个[Connection]
+ * This class implements the policy of which connections to keep open for future use.
  *
  * @constructor Create a new connection pool with tuning parameters appropriate for a single-user
  * application. The tuning parameters in this pool are subject to change in future OkHttp releases.
  * Currently this pool holds up to 5 idle connections which will be evicted after 5 minutes of
  * inactivity.
+ * 在当前版本的连接池管理，最多保持5个空闲的连接，如果超过5分钟没有被使用，就会被释放。
  */
 class ConnectionPool internal constructor(
-  internal val delegate: RealConnectionPool
+    internal val delegate: RealConnectionPool
 ) {
-  constructor(
-    maxIdleConnections: Int,
-    keepAliveDuration: Long,
-    timeUnit: TimeUnit
-  ) : this(RealConnectionPool(
-      taskRunner = TaskRunner.INSTANCE,
-      maxIdleConnections = maxIdleConnections,
-      keepAliveDuration = keepAliveDuration,
-      timeUnit = timeUnit
-  ))
+    constructor(
+        maxIdleConnections: Int,
+        keepAliveDuration: Long,
+        timeUnit: TimeUnit
+    ) : this(RealConnectionPool(
+        taskRunner = TaskRunner.INSTANCE,
+        maxIdleConnections = maxIdleConnections,
+        keepAliveDuration = keepAliveDuration,
+        timeUnit = timeUnit
+    ))
 
-  constructor() : this(5, 5, TimeUnit.MINUTES)
+    constructor() : this(5, 5, TimeUnit.MINUTES)
 
-  /** Returns the number of idle connections in the pool. */
-  fun idleConnectionCount(): Int = delegate.idleConnectionCount()
+    /** Returns the number of idle connections in the pool. */
+    fun idleConnectionCount(): Int = delegate.idleConnectionCount()
 
-  /** Returns total number of connections in the pool. */
-  fun connectionCount(): Int = delegate.connectionCount()
+    /** Returns total number of connections in the pool. */
+    fun connectionCount(): Int = delegate.connectionCount()
 
-  /** Close and remove all idle connections in the pool. */
-  fun evictAll() {
-    delegate.evictAll()
-  }
+    /** Close and remove all idle connections in the pool. */
+    fun evictAll() {
+        delegate.evictAll()
+    }
 }

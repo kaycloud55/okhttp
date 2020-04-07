@@ -19,6 +19,8 @@ import java.net.InetSocketAddress
 import java.net.Proxy
 
 /**
+ * 连接路径的抽象。
+ * 表示一种路由策略。
  * The concrete route used by a connection to reach an abstract origin server. When creating a
  * connection the client has many options:
  *
@@ -32,60 +34,60 @@ import java.net.Proxy
  * Each route is a specific selection of these options.
  */
 class Route(
-  @get:JvmName("address") val address: Address,
-  /**
-   * Returns the [Proxy] of this route.
-   *
-   * **Warning:** This may disagree with [Address.proxy] when it is null. When
-   * the address's proxy is null, the proxy selector is used.
-   */
-  @get:JvmName("proxy") val proxy: Proxy,
-  @get:JvmName("socketAddress") val socketAddress: InetSocketAddress
+    @get:JvmName("address") val address: Address,
+    /**
+     * Returns the [Proxy] of this route.
+     *
+     * **Warning:** This may disagree with [Address.proxy] when it is null. When
+     * the address's proxy is null, the proxy selector is used.
+     */
+    @get:JvmName("proxy") val proxy: Proxy,
+    @get:JvmName("socketAddress") val socketAddress: InetSocketAddress
 ) {
 
-  @JvmName("-deprecated_address")
-  @Deprecated(
-      message = "moved to val",
-      replaceWith = ReplaceWith(expression = "address"),
-      level = DeprecationLevel.ERROR)
-  fun address(): Address = address
+    @JvmName("-deprecated_address")
+    @Deprecated(
+        message = "moved to val",
+        replaceWith = ReplaceWith(expression = "address"),
+        level = DeprecationLevel.ERROR)
+    fun address(): Address = address
 
-  @JvmName("-deprecated_proxy")
-  @Deprecated(
-      message = "moved to val",
-      replaceWith = ReplaceWith(expression = "proxy"),
-      level = DeprecationLevel.ERROR)
-  fun proxy(): Proxy = proxy
+    @JvmName("-deprecated_proxy")
+    @Deprecated(
+        message = "moved to val",
+        replaceWith = ReplaceWith(expression = "proxy"),
+        level = DeprecationLevel.ERROR)
+    fun proxy(): Proxy = proxy
 
-  @JvmName("-deprecated_socketAddress")
-  @Deprecated(
-      message = "moved to val",
-      replaceWith = ReplaceWith(expression = "socketAddress"),
-      level = DeprecationLevel.ERROR)
-  fun socketAddress(): InetSocketAddress = socketAddress
+    @JvmName("-deprecated_socketAddress")
+    @Deprecated(
+        message = "moved to val",
+        replaceWith = ReplaceWith(expression = "socketAddress"),
+        level = DeprecationLevel.ERROR)
+    fun socketAddress(): InetSocketAddress = socketAddress
 
-  /**
-   * Returns true if this route tunnels HTTPS through an HTTP proxy.
-   * See [RFC 2817, Section 5.2][rfc_2817].
-   *
-   * [rfc_2817]: http://www.ietf.org/rfc/rfc2817.txt
-   */
-  fun requiresTunnel() = address.sslSocketFactory != null && proxy.type() == Proxy.Type.HTTP
+    /**
+     * Returns true if this route tunnels HTTPS through an HTTP proxy.
+     * See [RFC 2817, Section 5.2][rfc_2817].
+     *
+     * [rfc_2817]: http://www.ietf.org/rfc/rfc2817.txt
+     */
+    fun requiresTunnel() = address.sslSocketFactory != null && proxy.type() == Proxy.Type.HTTP
 
-  override fun equals(other: Any?): Boolean {
-    return other is Route &&
-        other.address == address &&
-        other.proxy == proxy &&
-        other.socketAddress == socketAddress
-  }
+    override fun equals(other: Any?): Boolean {
+        return other is Route &&
+            other.address == address &&
+            other.proxy == proxy &&
+            other.socketAddress == socketAddress
+    }
 
-  override fun hashCode(): Int {
-    var result = 17
-    result = 31 * result + address.hashCode()
-    result = 31 * result + proxy.hashCode()
-    result = 31 * result + socketAddress.hashCode()
-    return result
-  }
+    override fun hashCode(): Int {
+        var result = 17
+        result = 31 * result + address.hashCode()
+        result = 31 * result + proxy.hashCode()
+        result = 31 * result + socketAddress.hashCode()
+        return result
+    }
 
-  override fun toString(): String = "Route{$socketAddress}"
+    override fun toString(): String = "Route{$socketAddress}"
 }

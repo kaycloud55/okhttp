@@ -53,29 +53,30 @@ import okio.buffer
  * Caches HTTP and HTTPS responses to the filesystem so they may be reused, saving time and
  * bandwidth.
  *
- * ## Cache Optimization
+ * ## 缓存优化
  *
- * To measure cache effectiveness, this class tracks three statistics:
+ * 为了测量缓存的有效性，追踪了三个指标数据:
  *
- *  * **[Request Count:][requestCount]** the number of HTTP requests issued since this cache was
- *    created.
- *  * **[Network Count:][networkCount]** the number of those requests that required network use.
- *  * **[Hit Count:][hitCount]** the number of those requests whose responses were served by the
- *    cache.
+ *  * **[请求次数:][requestCount]** 从当前缓存创建开始，发出HTTP请求的次数
+ *  * **[请求通过网络的次数:][networkCount]** 上面的那些请求，使用网络的次数
+ *  * **[请求命中缓存的次数:][hitCount]** 上面的那些请求，直接从缓存返回的次数
  *
  * Sometimes a request will result in a conditional cache hit. If the cache contains a stale copy of
  * the response, the client will issue a conditional `GET`. The server will then send either
  * the updated response if it has changed, or a short 'not modified' response if the client's copy
  * is still valid. Such responses increment both the network count and hit count.
  *
- * The best way to improve the cache hit rate is by configuring the web server to return cacheable
- * responses. Although this client honors all [HTTP/1.1 (RFC 7234)][rfc_7234] cache headers, it
+ * 某些情况下，请求可能会导致"有条件的"缓存命中。比如since-not-modified的header，就需要先向服务器验证当前缓存是否可用，
+ * 如果服务器返回not modified，就会导致即通过网络发送了请求，也命中了本地缓存，同时会增加[networkCount]和[hitCount]
+ *
+ * 提高缓存命中率的最有效的方法就是让服务端返回可缓存的响应.
+ * Although this client honors all [HTTP/1.1 (RFC 7234)][rfc_7234] cache headers, it
  * doesn't cache partial responses.
  *
- * ## Force a Network Response
+ * ## 强制通过网络发送请求
  *
- * In some situations, such as after a user clicks a 'refresh' button, it may be necessary to skip
- * the cache, and fetch data directly from the server. To force a full refresh, add the `no-cache`
+ * 某些情况下, 例如用户点击刷新按钮, 这就需要直接跳过缓存，强制从服务端拉取最新数据.
+ * 为了强制刷新，一般需要在header里面添加'no-cache'。
  * directive:
  *
  * ```
@@ -97,7 +98,7 @@ import okio.buffer
  *     .build();
  * ```
  *
- * ## Force a Cache Response
+ * ## 强制使用缓存
  *
  * Sometimes you'll want to show resources if they are available immediately, but not otherwise.
  * This can be used so your application can show *something* while waiting for the latest data to be
@@ -166,7 +167,7 @@ class Cache internal constructor(
     constructor(directory: File, maxSize: Long) : this(directory, maxSize, FileSystem.SYSTEM)
 
     internal fun get(request: Request): Response? {
-        val key = key(request.url)
+        val key = key(request.url) //缓存命中的key是根据url算出来的
         val snapshot: DiskLruCache.Snapshot = try {
             cache[key] ?: return null
         } catch (_: IOException) {
@@ -191,7 +192,7 @@ class Cache internal constructor(
 
     internal fun put(response: Response): CacheRequest? {
         val requestMethod = response.request.method
-
+        //是否要刷新缓存，GET返回false
         if (HttpMethod.invalidatesCache(response.request.method)) {
             try {
                 remove(response.request)
@@ -202,11 +203,10 @@ class Cache internal constructor(
         }
 
         if (requestMethod != "GET") {
-            // Don't cache non-GET responses. We're technically allowed to cache HEAD requests and some
-            // POST requests, but the complexity of doing so is high and the benefit is low.
+            // 不缓存除GET请求以外的响应；从技术上来说，HEAD和POST也是可以缓存的，但是成本太高，收益太低
             return null
         }
-
+        //header中有*号的不允许缓存
         if (response.hasVaryAll()) {
             return null
         }
@@ -257,8 +257,7 @@ class Cache internal constructor(
      * cache size. The application needs to be aware of calling this function during the
      * initialization phase and preferably in a background worker thread.
      *
-     * Note that if the application chooses to not call this method to initialize the cache. By
-     * default, OkHttp will perform lazy initialization upon the first usage of the cache.
+     * 应用程序不会主动调用这个方法来初始化。当OKhttp第一次使用cache的时候，会主动调用这个方法。
      */
     @Throws(IOException::class)
     fun initialize() {
@@ -367,6 +366,9 @@ class Cache internal constructor(
         level = DeprecationLevel.ERROR)
     fun directory(): File = cache.directory
 
+    /**
+     * 追踪缓存命中比例，体现在网络请求次数和命中次数
+     */
     @Synchronized
     internal fun trackResponse(cacheStrategy: CacheStrategy) {
         requestCount++

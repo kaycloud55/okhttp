@@ -19,12 +19,15 @@ package okhttp3
 import java.net.Socket
 
 /**
+ * HTTP中连接的抽象——也就是socket和stream的抽象。
  * The sockets and streams of an HTTP, HTTPS, or HTTPS+HTTP/2 connection. May be used for multiple
  * HTTP request/response exchanges. Connections may be direct to the origin server or via a proxy.
  *
  * Typically instances of this class are created, connected and exercised automatically by the HTTP
  * client. Applications may use this class to monitor HTTP connections as members of a
  * [connection pool][ConnectionPool].
+ *
+ * 连接池中管理的就是这个对象。
  *
  * Do not confuse this class with the misnamed `HttpURLConnection`, which isn't so much a connection
  * as a single request/response exchange.
@@ -46,6 +49,11 @@ import java.net.Socket
  *
  * ## Connection Reuse
  *
+ * ## 连接复用
+ *
+ * 每个连接都可以承载大量的stream，具体的数量取决于底层的协议版本。对于HTTP/1.x，每个连接对应0个或1个stream，对于HTTP/2，
+ * 每个连接可以承载大量的流，这取决于`SETTINGS_MAX_CONCURRENT_STREAMS`的配置。
+ * 没有承载流的connection视作空闲的，可以被复用。
  * Each connection can carry a varying number of streams, depending on the underlying protocol being
  * used. HTTP/1.x connections can carry either zero or one streams. HTTP/2 connections can carry any
  * number of streams, dynamically configured with `SETTINGS_MAX_CONCURRENT_STREAMS`. A connection
@@ -67,26 +75,26 @@ import java.net.Socket
  * been found. But only complete the stream once its data stream has been exhausted.
  */
 interface Connection {
-  /** Returns the route used by this connection. */
-  fun route(): Route
+    /** Returns the route used by this connection. */
+    fun route(): Route
 
-  /**
-   * Returns the socket that this connection is using. Returns an
-   * [SSL socket][javax.net.ssl.SSLSocket] if this connection is HTTPS. If this is an HTTP/2
-   * connection the socket may be shared by multiple concurrent calls.
-   */
-  fun socket(): Socket
+    /**
+     * Returns the socket that this connection is using. Returns an
+     * [SSL socket][javax.net.ssl.SSLSocket] if this connection is HTTPS. If this is an HTTP/2
+     * connection the socket may be shared by multiple concurrent calls.
+     */
+    fun socket(): Socket
 
-  /**
-   * Returns the TLS handshake used to establish this connection, or null if the connection is not
-   * HTTPS.
-   */
-  fun handshake(): Handshake?
+    /**
+     * Returns the TLS handshake used to establish this connection, or null if the connection is not
+     * HTTPS.
+     */
+    fun handshake(): Handshake?
 
-  /**
-   * Returns the protocol negotiated by this connection, or [Protocol.HTTP_1_1] if no protocol
-   * has been negotiated. This method returns [Protocol.HTTP_1_1] even if the remote peer is using
-   * [Protocol.HTTP_1_0].
-   */
-  fun protocol(): Protocol
+    /**
+     * Returns the protocol negotiated by this connection, or [Protocol.HTTP_1_1] if no protocol
+     * has been negotiated. This method returns [Protocol.HTTP_1_1] even if the remote peer is using
+     * [Protocol.HTTP_1_0].
+     */
+    fun protocol(): Protocol
 }

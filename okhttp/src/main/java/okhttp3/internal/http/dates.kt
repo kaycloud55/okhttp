@@ -30,13 +30,13 @@ internal const val MAX_DATE = 253402300799999L
  * cookies are on the fast path.
  */
 private val STANDARD_DATE_FORMAT = object : ThreadLocal<DateFormat>() {
-  override fun initialValue(): DateFormat {
-    // Date format specified by RFC 7231 section 7.1.1.1.
-    return SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss 'GMT'", Locale.US).apply {
-      isLenient = false
-      timeZone = UTC
+    override fun initialValue(): DateFormat {
+        // Date format specified by RFC 7231 section 7.1.1.1.
+        return SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss 'GMT'", Locale.US).apply {
+            isLenient = false
+            timeZone = UTC
+        }
     }
-  }
 }
 
 /** If we fail to parse a date in a non-standard format, try each of these formats in sequence. */
@@ -67,39 +67,39 @@ private val BROWSER_COMPATIBLE_DATE_FORMATS =
 
 /** Returns the date for this string, or null if the value couldn't be parsed. */
 internal fun String.toHttpDateOrNull(): Date? {
-  if (isEmpty()) return null
+    if (isEmpty()) return null
 
-  val position = ParsePosition(0)
-  var result = STANDARD_DATE_FORMAT.get().parse(this, position)
-  if (position.index == length) {
-    // STANDARD_DATE_FORMAT must match exactly; all text must be consumed, e.g. no ignored
-    // non-standard trailing "+01:00". Those cases are covered below.
-    return result
-  }
-  synchronized(BROWSER_COMPATIBLE_DATE_FORMAT_STRINGS) {
-    for (i in 0 until BROWSER_COMPATIBLE_DATE_FORMAT_STRINGS.size) {
-      var format: DateFormat? = BROWSER_COMPATIBLE_DATE_FORMATS[i]
-      if (format == null) {
-        format = SimpleDateFormat(BROWSER_COMPATIBLE_DATE_FORMAT_STRINGS[i], Locale.US).apply {
-          // Set the timezone to use when interpreting formats that don't have a timezone. GMT is
-          // specified by RFC 7231.
-          timeZone = UTC
-        }
-        BROWSER_COMPATIBLE_DATE_FORMATS[i] = format
-      }
-      position.index = 0
-      result = format.parse(this, position)
-      if (position.index != 0) {
-        // Something was parsed. It's possible the entire string was not consumed but we ignore
-        // that. If any of the BROWSER_COMPATIBLE_DATE_FORMAT_STRINGS ended in "'GMT'" we'd have
-        // to also check that position.getIndex() == value.length() otherwise parsing might have
-        // terminated early, ignoring things like "+01:00". Leaving this as != 0 means that any
-        // trailing junk is ignored.
+    val position = ParsePosition(0)
+    var result = STANDARD_DATE_FORMAT.get().parse(this, position)
+    if (position.index == length) {
+        // STANDARD_DATE_FORMAT must match exactly; all text must be consumed, e.g. no ignored
+        // non-standard trailing "+01:00". Those cases are covered below.
         return result
-      }
     }
-  }
-  return null
+    synchronized(BROWSER_COMPATIBLE_DATE_FORMAT_STRINGS) {
+        for (i in 0 until BROWSER_COMPATIBLE_DATE_FORMAT_STRINGS.size) {
+            var format: DateFormat? = BROWSER_COMPATIBLE_DATE_FORMATS[i]
+            if (format == null) {
+                format = SimpleDateFormat(BROWSER_COMPATIBLE_DATE_FORMAT_STRINGS[i], Locale.US).apply {
+                    // Set the timezone to use when interpreting formats that don't have a timezone. GMT is
+                    // specified by RFC 7231.
+                    timeZone = UTC
+                }
+                BROWSER_COMPATIBLE_DATE_FORMATS[i] = format
+            }
+            position.index = 0
+            result = format.parse(this, position)
+            if (position.index != 0) {
+                // Something was parsed. It's possible the entire string was not consumed but we ignore
+                // that. If any of the BROWSER_COMPATIBLE_DATE_FORMAT_STRINGS ended in "'GMT'" we'd have
+                // to also check that position.getIndex() == value.length() otherwise parsing might have
+                // terminated early, ignoring things like "+01:00". Leaving this as != 0 means that any
+                // trailing junk is ignored.
+                return result
+            }
+        }
+    }
+    return null
 }
 
 /** Returns the string for this date. */

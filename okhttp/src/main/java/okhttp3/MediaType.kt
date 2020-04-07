@@ -26,19 +26,19 @@ import java.util.regex.Pattern
  * [rfc_2045]: http://tools.ietf.org/html/rfc2045
  */
 class MediaType private constructor(
-        private val mediaType: String,
+    private val mediaType: String,
 
-        /**
-         * Returns the high-level media type, such as "text", "image", "audio", "video", or "application".
-         */
-        @get:JvmName("type") val type: String,
+    /**
+     * Returns the high-level media type, such as "text", "image", "audio", "video", or "application".
+     */
+    @get:JvmName("type") val type: String,
 
-        /**
-         * Returns a specific media subtype, such as "plain" or "png", "mpeg", "mp4" or "xml".
-         */
-        @get:JvmName("subtype") val subtype: String,
+    /**
+     * Returns a specific media subtype, such as "plain" or "png", "mpeg", "mp4" or "xml".
+     */
+    @get:JvmName("subtype") val subtype: String,
 
-        private val charset: String?
+    private val charset: String?
 ) {
 
     /**
@@ -56,16 +56,16 @@ class MediaType private constructor(
 
     @JvmName("-deprecated_type")
     @Deprecated(
-            message = "moved to val",
-            replaceWith = ReplaceWith(expression = "type"),
-            level = DeprecationLevel.ERROR)
+        message = "moved to val",
+        replaceWith = ReplaceWith(expression = "type"),
+        level = DeprecationLevel.ERROR)
     fun type() = type
 
     @JvmName("-deprecated_subtype")
     @Deprecated(
-            message = "moved to val",
-            replaceWith = ReplaceWith(expression = "subtype"),
-            level = DeprecationLevel.ERROR)
+        message = "moved to val",
+        replaceWith = ReplaceWith(expression = "subtype"),
+        level = DeprecationLevel.ERROR)
     fun subtype() = subtype
 
     /**
@@ -147,20 +147,20 @@ class MediaType private constructor(
 
         @JvmName("-deprecated_get")
         @Deprecated(
-                message = "moved to extension function",
-                replaceWith = ReplaceWith(
-                        expression = "mediaType.toMediaType()",
-                        imports = ["okhttp3.MediaType.Companion.toMediaType"]),
-                level = DeprecationLevel.ERROR)
+            message = "moved to extension function",
+            replaceWith = ReplaceWith(
+                expression = "mediaType.toMediaType()",
+                imports = ["okhttp3.MediaType.Companion.toMediaType"]),
+            level = DeprecationLevel.ERROR)
         fun get(mediaType: String): MediaType = mediaType.toMediaType()
 
         @JvmName("-deprecated_parse")
         @Deprecated(
-                message = "moved to extension function",
-                replaceWith = ReplaceWith(
-                        expression = "mediaType.toMediaTypeOrNull()",
-                        imports = ["okhttp3.MediaType.Companion.toMediaTypeOrNull"]),
-                level = DeprecationLevel.ERROR)
+            message = "moved to extension function",
+            replaceWith = ReplaceWith(
+                expression = "mediaType.toMediaTypeOrNull()",
+                imports = ["okhttp3.MediaType.Companion.toMediaTypeOrNull"]),
+            level = DeprecationLevel.ERROR)
         fun parse(mediaType: String): MediaType? = mediaType.toMediaTypeOrNull()
     }
 }

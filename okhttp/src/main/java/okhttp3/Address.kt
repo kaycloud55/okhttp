@@ -29,6 +29,8 @@ import okhttp3.internal.toImmutableList
  * this also includes that proxy information. For secure connections the address also includes the SSL socket factory,
  * hostname verifier, and certificate pinner.
  *
+ * 请求服务器的host和port信息。如果有代理服务器的，还包括代理的信息；对于HTTPS的链接，还包含SSL socket factory和域名验证器、证书
+ *
  * HTTP requests that share the same [Address] may also share the same [Connection].
  */
 class Address(
