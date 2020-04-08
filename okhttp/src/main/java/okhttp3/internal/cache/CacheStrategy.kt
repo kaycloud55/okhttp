@@ -38,38 +38,33 @@ import okhttp3.internal.toNonNegativeInt
  *
  * 缓存策略
  *
- * Given a request and cached response, this figures out whether to use the network, the cache, or
- * both.
+ * 这个类决定了是使用缓存还是使用网络，或者都使用
  *
  * Selecting a cache strategy may add conditions to the request (like the "If-Modified-Since" header
  * for conditional GETs) or warnings to the cached response (if the cached data is potentially
  * stale).
  */
 class CacheStrategy internal constructor(
-    /** The request to send on the network, or null if this call doesn't use the network. */
-    val networkRequest: Request?,
-    /** The cached response to return or validate; or null if this call doesn't use a cache. */
-    val cacheResponse: Response?
+        /** 需要发送给服务端的请求，如果使用缓存的话这个值为null。 */
+        val networkRequest: Request?,
+        /** 要返回或者是发送给服务器进行验证的缓存的response; 如果不适用缓存的话，这个值为null. */
+        val cacheResponse: Response?
 ) {
 
     class Factory(
-        private val nowMillis: Long,
-        internal val request: Request,
-        private val cacheResponse: Response?
+            private val nowMillis: Long,
+            internal val request: Request,
+            private val cacheResponse: Response?
     ) {
         /** The server's time when the cached response was served, if known. */
         private var servedDate: Date? = null //服务器时间
         private var servedDateString: String? = null
 
-        /** The last modified date of the cached response, if known. */
+        /** 对应头部的`last-modified`. */
         private var lastModified: Date? = null //缓存上次修改时间
         private var lastModifiedString: String? = null
 
-        /**
-         * The expiration date of the cached response, if known. If both this field and the max age are
-         * set, the max age is preferred.
-         */
-        private var expires: Date? = null //过期时间，max-age优先
+        private var expires: Date? = null //过期的绝对时间，max-age优先
 
         /**
          * Extension header set by OkHttp specifying the timestamp when the cached HTTP request was
@@ -133,6 +128,7 @@ class CacheStrategy internal constructor(
             val candidate = computeCandidate()
 
             // We're forbidden from using the network and the cache is insufficient.
+            //禁止使用网络，并且缓存不可用
             if (candidate.networkRequest != null && request.cacheControl.onlyIfCached) {
                 return CacheStrategy(null, null)
             }
@@ -140,19 +136,19 @@ class CacheStrategy internal constructor(
             return candidate
         }
 
-        /** Returns a strategy to use assuming the request can use the network. */
+        /** 假设可以使用网络，则返回要使用的策略 */
         private fun computeCandidate(): CacheStrategy {
-            // No cached response.
+            // 没有缓存
             if (cacheResponse == null) {
                 return CacheStrategy(request, null)
             }
 
-            // Drop the cached response if it's missing a required handshake.
+            // 如果没有握手的数据，并且是https的请求，直接丢掉缓存，也视为缓存不可用
             if (request.isHttps && cacheResponse.handshake == null) {
                 return CacheStrategy(request, null)
             }
 
-            // If this response shouldn't have been stored, it should never be used as a response source.
+            // 如果这个response不应该被缓存, 它就不应该作为新的响应的来源。
             // This check should be redundant as long as the persistence store is well-behaved and the
             // rules are constant.
             if (!isCacheable(cacheResponse, request)) {
@@ -160,6 +156,7 @@ class CacheStrategy internal constructor(
             }
 
             val requestCaching = request.cacheControl
+            //客户端设置了不使用缓存
             if (requestCaching.noCache || hasConditions(request)) {
                 return CacheStrategy(request, null)
             }
@@ -168,7 +165,7 @@ class CacheStrategy internal constructor(
 
             val ageMillis = cacheResponseAge()
             var freshMillis = computeFreshnessLifetime()
-
+            //计算缓存新鲜度
             if (requestCaching.maxAgeSeconds != -1) {
                 freshMillis = minOf(freshMillis, SECONDS.toMillis(requestCaching.maxAgeSeconds.toLong()))
             }
@@ -182,7 +179,7 @@ class CacheStrategy internal constructor(
             if (!responseCaching.mustRevalidate && requestCaching.maxStaleSeconds != -1) {
                 maxStaleMillis = SECONDS.toMillis(requestCaching.maxStaleSeconds.toLong())
             }
-
+            //服务端没有禁止缓存，并且
             if (!responseCaching.noCache && ageMillis + minFreshMillis < freshMillis + maxStaleMillis) {
                 val builder = cacheResponse.newBuilder()
                 if (ageMillis + minFreshMillis >= freshMillis) {
@@ -195,8 +192,7 @@ class CacheStrategy internal constructor(
                 return CacheStrategy(null, builder.build())
             }
 
-            // Find a condition to add to the request. If the condition is satisfied, the response body
-            // will not be transmitted.
+            // 执行有条件的缓存策略
             val conditionName: String
             val conditionValue: String?
             when {
@@ -222,8 +218,8 @@ class CacheStrategy internal constructor(
             conditionalRequestHeaders.addLenient(conditionName, conditionValue!!)
 
             val conditionalRequest = request.newBuilder()
-                .headers(conditionalRequestHeaders.build())
-                .build()
+                    .headers(conditionalRequestHeaders.build())
+                    .build()
             return CacheStrategy(conditionalRequest, cacheResponse)
         }
 
@@ -285,7 +281,7 @@ class CacheStrategy internal constructor(
          * response cache won't be used.
          */
         private fun hasConditions(request: Request): Boolean =
-            request.header("If-Modified-Since") != null || request.header("If-None-Match") != null
+                request.header("If-Modified-Since") != null || request.header("If-None-Match") != null
     }
 
     companion object {
@@ -319,9 +315,9 @@ class CacheStrategy internal constructor(
                     // http://tools.ietf.org/html/rfc7234#section-3
                     // s-maxage is not checked because OkHttp is a private cache that should ignore s-maxage.
                     if (response.header("Expires") == null &&
-                        response.cacheControl.maxAgeSeconds == -1 &&
-                        !response.cacheControl.isPublic &&
-                        !response.cacheControl.isPrivate) {
+                            response.cacheControl.maxAgeSeconds == -1 &&
+                            !response.cacheControl.isPublic &&
+                            !response.cacheControl.isPrivate) {
                         return false
                     }
                 }

@@ -34,11 +34,9 @@ import okio.ByteString
  * response body. Each response body is supported by an active connection to the webserver. This
  * imposes both obligations and limits on the client application.
  *
- * ### The response body must be closed.
+ * ### response body必须被及时关闭.
  *
- * Each response body is backed by a limited resource like a socket (live network responses) or
- * an open file (for cached responses). Failing to close the response body will leak resources and
- * may ultimately cause the application to slow down or crash.
+ * 每个响应都是由有限的资源例如socket或者是打开的文件（cache）来提供的，如果不及时关闭的话，将会导致资源泄露，导致应用程序变慢甚至crash。
  *
  * Both this class and [Response] implement [Closeable]. Closing a response simply
  * closes its response body. If you invoke [Call.execute] or implement [Callback.onResponse] you
@@ -52,11 +50,9 @@ import okio.ByteString
  * * `Response.body().bytes()`
  * * `Response.body().string()`
  *
- * There is no benefit to invoking multiple `close()` methods for the same response body.
+ * 对同一个response body多次调用'close()'是没有意义的。
  *
- * For synchronous calls, the easiest way to make sure a response body is closed is with a `try`
- * block. With this structure the compiler inserts an implicit `finally` clause that calls
- * [close()][Response.close] for you.
+ * 对于同步请求，最简单的确保response body关闭的办法是使用try{}语句块. 编译器会自动插入'finally'语句块，并且执行close。
  *
  * ```
  * Call call = client.newCall(request);
@@ -65,7 +61,7 @@ import okio.ByteString
  * }
  * ```
  *
- * You can use a similar block for asynchronous calls:
+ * 同样的，异步请求也可以这么调用:
  *
  * ```
  * Call call = client.newCall(request);
@@ -82,20 +78,15 @@ import okio.ByteString
  * });
  * ```
  *
- * These examples will not work if you're consuming the response body on another thread. In such
- * cases the consuming thread must call [close] when it has finished reading the response
- * body.
  *
- * ### The response body can be consumed only once.
+ * 如果是在异步线程读取响应的话，上面的设置是无效的。必须在读取的线程手动执行[close]操作。
  *
- * This class may be used to stream very large responses. For example, it is possible to use this
- * class to read a response that is larger than the entire memory allocated to the current process.
- * It can even stream a response larger than the total storage on the current device, which is a
- * common requirement for video streaming applications.
+ * ### response body只能被消费一次
  *
- * Because this class does not buffer the full response in memory, the application may not
- * re-read the bytes of the response. Use this one shot to read the entire response into memory with
- * [bytes] or [string]. Or stream the response with either [source], [byteStream], or [charStream].
+ * 当前类可能包含的响应的内容是非常庞大的. 甚至，它可能比当前进程被分配的可用内存还要大，设置比当前设置的内存还要大。
+ *
+ * 因为此类不缓冲内存中的完整响应，所以应用程序可能不会重新读取响应的字节。
+ * 使用这一个快照读取整个响应到内存字节或字符串通过[bytes]或者[string]。 或者使用[source]、 [byteStream] 或 [charStream] 传输响应。
  */
 abstract class ResponseBody : Closeable {
     /** Multiple calls to [charStream] must return the same instance. */
@@ -114,28 +105,25 @@ abstract class ResponseBody : Closeable {
     abstract fun source(): BufferedSource
 
     /**
-     * Returns the response as a byte array.
+     * 以字节数组的形式返回响应.
      *
-     * This method loads entire response body into memory. If the response body is very large this
-     * may trigger an [OutOfMemoryError]. Prefer to stream the response body if this is a
-     * possibility for your response.
+     * 这个方法会把整个响应加载到内存中. 如果响应非常大的话，可能会触发[OutOfMemoryError].
+     * 所以尽可能考虑使用`stream`。
      */
     @Throws(IOException::class)
     fun bytes() = consumeSource(BufferedSource::readByteArray) { it.size }
 
     /**
-     * Returns the response as a [ByteString].
+     * 以[ByteString]的形式返回响应.
      *
-     * This method loads entire response body into memory. If the response body is very large this
-     * may trigger an [OutOfMemoryError]. Prefer to stream the response body if this is a
-     * possibility for your response.
+     * 这个方法会把整个响应加载到内存中. 如果响应非常大的话，可能会触发[OutOfMemoryError].
      */
     @Throws(IOException::class)
     fun byteString() = consumeSource(BufferedSource::readByteString) { it.size }
 
     private inline fun <T : Any> consumeSource(
-        consumer: (BufferedSource) -> T,
-        sizeMapper: (T) -> Int
+            consumer: (BufferedSource) -> T,
+            sizeMapper: (T) -> Int
     ): T {
         val contentLength = contentLength()
         if (contentLength > Int.MAX_VALUE) {
@@ -151,7 +139,7 @@ abstract class ResponseBody : Closeable {
     }
 
     /**
-     * Returns the response as a character stream.
+     * 以字节流的形式返回数据
      *
      * If the response starts with a
      * [Byte Order Mark (BOM)](https://en.wikipedia.org/wiki/Byte_order_mark), it is consumed and
@@ -178,9 +166,8 @@ abstract class ResponseBody : Closeable {
      *
      * Otherwise the response bytes are decoded as UTF-8.
      *
-     * This method loads entire response body into memory. If the response body is very large this
-     * may trigger an [OutOfMemoryError]. Prefer to stream the response body if this is a
-     * possibility for your response.
+     * 这个方法会把整个响应加载到内存中. 如果响应非常大的话，可能会触发[OutOfMemoryError].
+     * 所以尽可能考虑使用`stream`。
      */
     @Throws(IOException::class)
     fun string(): String = source().use { source ->
@@ -192,8 +179,8 @@ abstract class ResponseBody : Closeable {
     override fun close() = source().closeQuietly()
 
     internal class BomAwareReader(
-        private val source: BufferedSource,
-        private val charset: Charset
+            private val source: BufferedSource,
+            private val charset: Charset
     ) : Reader() {
 
         private var closed: Boolean = false
@@ -204,8 +191,8 @@ abstract class ResponseBody : Closeable {
             if (closed) throw IOException("Stream closed")
 
             val finalDelegate = delegate ?: InputStreamReader(
-                source.inputStream(),
-                source.readBomAsCharset(charset)).also {
+                    source.inputStream(),
+                    source.readBomAsCharset(charset)).also {
                 delegate = it
             }
             return finalDelegate.read(cbuf, off, len)
@@ -246,8 +233,8 @@ abstract class ResponseBody : Closeable {
         @JvmName("create")
         fun ByteArray.toResponseBody(contentType: MediaType? = null): ResponseBody {
             return Buffer()
-                .write(this)
-                .asResponseBody(contentType, size.toLong())
+                    .write(this)
+                    .asResponseBody(contentType, size.toLong())
         }
 
         /** Returns a new response body that transmits this byte string. */
@@ -255,16 +242,16 @@ abstract class ResponseBody : Closeable {
         @JvmName("create")
         fun ByteString.toResponseBody(contentType: MediaType? = null): ResponseBody {
             return Buffer()
-                .write(this)
-                .asResponseBody(contentType, size.toLong())
+                    .write(this)
+                    .asResponseBody(contentType, size.toLong())
         }
 
         /** Returns a new response body that transmits this source. */
         @JvmStatic
         @JvmName("create")
         fun BufferedSource.asResponseBody(
-            contentType: MediaType? = null,
-            contentLength: Long = -1L
+                contentType: MediaType? = null,
+                contentLength: Long = -1L
         ): ResponseBody = object : ResponseBody() {
             override fun contentType() = contentType
 
@@ -273,48 +260,48 @@ abstract class ResponseBody : Closeable {
             override fun source() = this@asResponseBody
         }
 
-        @JvmStatic
-        @Deprecated(
-            message = "Moved to extension function. Put the 'content' argument first to fix Java",
-            replaceWith = ReplaceWith(
-                expression = "content.toResponseBody(contentType)",
-                imports = ["okhttp3.ResponseBody.Companion.toResponseBody"]
-            ),
-            level = DeprecationLevel.WARNING)
-        fun create(contentType: MediaType?, content: String) = content.toResponseBody(contentType)
-
-        @JvmStatic
-        @Deprecated(
-            message = "Moved to extension function. Put the 'content' argument first to fix Java",
-            replaceWith = ReplaceWith(
-                expression = "content.toResponseBody(contentType)",
-                imports = ["okhttp3.ResponseBody.Companion.toResponseBody"]
-            ),
-            level = DeprecationLevel.WARNING)
-        fun create(contentType: MediaType?, content: ByteArray) = content.toResponseBody(contentType)
-
-        @JvmStatic
-        @Deprecated(
-            message = "Moved to extension function. Put the 'content' argument first to fix Java",
-            replaceWith = ReplaceWith(
-                expression = "content.toResponseBody(contentType)",
-                imports = ["okhttp3.ResponseBody.Companion.toResponseBody"]
-            ),
-            level = DeprecationLevel.WARNING)
-        fun create(contentType: MediaType?, content: ByteString) = content.toResponseBody(contentType)
-
-        @JvmStatic
-        @Deprecated(
-            message = "Moved to extension function. Put the 'content' argument first to fix Java",
-            replaceWith = ReplaceWith(
-                expression = "content.asResponseBody(contentType, contentLength)",
-                imports = ["okhttp3.ResponseBody.Companion.asResponseBody"]
-            ),
-            level = DeprecationLevel.WARNING)
-        fun create(
-            contentType: MediaType?,
-            contentLength: Long,
-            content: BufferedSource
-        ) = content.asResponseBody(contentType, contentLength)
+//        @JvmStatic
+//        @Deprecated(
+//                message = "Moved to extension function. Put the 'content' argument first to fix Java",
+//                replaceWith = ReplaceWith(
+//                        expression = "content.toResponseBody(contentType)",
+//                        imports = ["okhttp3.ResponseBody.Companion.toResponseBody"]
+//                ),
+//                level = DeprecationLevel.WARNING)
+//        fun create(contentType: MediaType?, content: String) = content.toResponseBody(contentType)
+//
+//        @JvmStatic
+//        @Deprecated(
+//                message = "Moved to extension function. Put the 'content' argument first to fix Java",
+//                replaceWith = ReplaceWith(
+//                        expression = "content.toResponseBody(contentType)",
+//                        imports = ["okhttp3.ResponseBody.Companion.toResponseBody"]
+//                ),
+//                level = DeprecationLevel.WARNING)
+//        fun create(contentType: MediaType?, content: ByteArray) = content.toResponseBody(contentType)
+//
+//        @JvmStatic
+//        @Deprecated(
+//                message = "Moved to extension function. Put the 'content' argument first to fix Java",
+//                replaceWith = ReplaceWith(
+//                        expression = "content.toResponseBody(contentType)",
+//                        imports = ["okhttp3.ResponseBody.Companion.toResponseBody"]
+//                ),
+//                level = DeprecationLevel.WARNING)
+//        fun create(contentType: MediaType?, content: ByteString) = content.toResponseBody(contentType)
+//
+//        @JvmStatic
+//        @Deprecated(
+//                message = "Moved to extension function. Put the 'content' argument first to fix Java",
+//                replaceWith = ReplaceWith(
+//                        expression = "content.asResponseBody(contentType, contentLength)",
+//                        imports = ["okhttp3.ResponseBody.Companion.asResponseBody"]
+//                ),
+//                level = DeprecationLevel.WARNING)
+//        fun create(
+//                contentType: MediaType?,
+//                contentLength: Long,
+//                content: BufferedSource
+//        ) = content.asResponseBody(contentType, contentLength)
     }
 }

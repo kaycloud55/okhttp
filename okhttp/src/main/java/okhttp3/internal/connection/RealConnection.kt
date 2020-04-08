@@ -71,8 +71,8 @@ import okio.sink
 import okio.source
 
 class RealConnection(
-    val connectionPool: RealConnectionPool,
-    private val route: Route
+        val connectionPool: RealConnectionPool,
+        private val route: Route
 ) : Http2Connection.Listener(), Connection {
 
     // The fields below are initialized by connect() and never reassigned.
@@ -152,13 +152,13 @@ class RealConnection(
     }
 
     fun connect(
-        connectTimeout: Int,
-        readTimeout: Int,
-        writeTimeout: Int,
-        pingIntervalMillis: Int,
-        connectionRetryEnabled: Boolean,
-        call: Call,
-        eventListener: EventListener
+            connectTimeout: Int,
+            readTimeout: Int,
+            writeTimeout: Int,
+            pingIntervalMillis: Int,
+            connectionRetryEnabled: Boolean,
+            call: Call,
+            eventListener: EventListener
     ) {
         check(protocol == null) { "already connected" }
 
@@ -169,17 +169,17 @@ class RealConnection(
         if (route.address.sslSocketFactory == null) {
             if (ConnectionSpec.CLEARTEXT !in connectionSpecs) {
                 throw RouteException(UnknownServiceException(
-                    "CLEARTEXT communication not enabled for client"))
+                        "CLEARTEXT communication not enabled for client"))
             }
             val host = route.address.url.host
             if (!Platform.get().isCleartextTrafficPermitted(host)) {
                 throw RouteException(UnknownServiceException(
-                    "CLEARTEXT communication to $host not permitted by network security policy"))
+                        "CLEARTEXT communication to $host not permitted by network security policy"))
             }
         } else {
             if (Protocol.H2_PRIOR_KNOWLEDGE in route.address.protocols) {
                 throw RouteException(UnknownServiceException(
-                    "H2_PRIOR_KNOWLEDGE cannot be used with HTTPS"))
+                        "H2_PRIOR_KNOWLEDGE cannot be used with HTTPS"))
             }
         }
 
@@ -225,7 +225,7 @@ class RealConnection(
 
         if (route.requiresTunnel() && rawSocket == null) {
             throw RouteException(ProtocolException(
-                "Too many tunnel connections attempted: $MAX_TUNNEL_ATTEMPTS"))
+                    "Too many tunnel connections attempted: $MAX_TUNNEL_ATTEMPTS"))
         }
 
         idleAtNs = System.nanoTime()
@@ -237,18 +237,18 @@ class RealConnection(
      */
     @Throws(IOException::class)
     private fun connectTunnel(
-        connectTimeout: Int,
-        readTimeout: Int,
-        writeTimeout: Int,
-        call: Call,
-        eventListener: EventListener
+            connectTimeout: Int,
+            readTimeout: Int,
+            writeTimeout: Int,
+            call: Call,
+            eventListener: EventListener
     ) {
         var tunnelRequest: Request = createTunnelRequest()
         val url = tunnelRequest.url
         for (i in 0 until MAX_TUNNEL_ATTEMPTS) {
             connectSocket(connectTimeout, readTimeout, call, eventListener)
             tunnelRequest = createTunnel(readTimeout, writeTimeout, tunnelRequest, url)
-                ?: break // Tunnel successfully created.
+                    ?: break // Tunnel successfully created.
 
             // The proxy decided to close the connection after an auth challenge. We need to create a new
             // connection, but this time with the auth credentials.
@@ -263,10 +263,10 @@ class RealConnection(
     /** Does all the work necessary to build a full HTTP or HTTPS connection on a raw socket. */
     @Throws(IOException::class)
     private fun connectSocket(
-        connectTimeout: Int,
-        readTimeout: Int,
-        call: Call,
-        eventListener: EventListener
+            connectTimeout: Int,
+            readTimeout: Int,
+            call: Call,
+            eventListener: EventListener
     ) {
         val proxy = route.proxy
         val address = route.address
@@ -303,10 +303,10 @@ class RealConnection(
 
     @Throws(IOException::class)
     private fun establishProtocol(
-        connectionSpecSelector: ConnectionSpecSelector,
-        pingIntervalMillis: Int,
-        call: Call,
-        eventListener: EventListener
+            connectionSpecSelector: ConnectionSpecSelector,
+            pingIntervalMillis: Int,
+            call: Call,
+            eventListener: EventListener
     ) {
         if (route.address.sslSocketFactory == null) {
             if (Protocol.H2_PRIOR_KNOWLEDGE in route.address.protocols) {
@@ -337,10 +337,10 @@ class RealConnection(
         val sink = this.sink!!
         socket.soTimeout = 0 // HTTP/2 connection timeouts are set per-stream.
         val http2Connection = Http2Connection.Builder(client = true, taskRunner = TaskRunner.INSTANCE)
-            .socket(socket, route.address.url.host, source, sink)
-            .listener(this)
-            .pingIntervalMillis(pingIntervalMillis)
-            .build()
+                .socket(socket, route.address.url.host, source, sink)
+                .listener(this)
+                .pingIntervalMillis(pingIntervalMillis)
+                .build()
         this.http2Connection = http2Connection
         this.allocationLimit = Http2Connection.DEFAULT_SETTINGS.getMaxConcurrentStreams()
         http2Connection.start()
@@ -355,7 +355,7 @@ class RealConnection(
         try {
             // Create the wrapper over the connected socket.
             sslSocket = sslSocketFactory!!.createSocket(
-                rawSocket, address.url.host, address.url.port, true /* autoClose */) as SSLSocket
+                    rawSocket, address.url.host, address.url.port, true /* autoClose */) as SSLSocket
 
             // Configure the socket's ciphers, TLS versions, and extensions.
             val connectionSpec = connectionSpecSelector.configureSecureSocket(sslSocket)
@@ -382,16 +382,16 @@ class RealConnection(
               """.trimMargin())
                 } else {
                     throw SSLPeerUnverifiedException(
-                        "Hostname ${address.url.host} not verified (no certificates)")
+                            "Hostname ${address.url.host} not verified (no certificates)")
                 }
             }
 
             val certificatePinner = address.certificatePinner!!
 
             handshake = Handshake(unverifiedHandshake.tlsVersion, unverifiedHandshake.cipherSuite,
-                unverifiedHandshake.localCertificates) {
+                    unverifiedHandshake.localCertificates) {
                 certificatePinner.certificateChainCleaner!!.clean(unverifiedHandshake.peerCertificates,
-                    address.url.host)
+                        address.url.host)
             }
 
             // Check that the certificate pinner is satisfied by the certificates presented.
@@ -426,10 +426,10 @@ class RealConnection(
      */
     @Throws(IOException::class)
     private fun createTunnel(
-        readTimeout: Int,
-        writeTimeout: Int,
-        tunnelRequest: Request,
-        url: HttpUrl
+            readTimeout: Int,
+            writeTimeout: Int,
+            tunnelRequest: Request,
+            url: HttpUrl
     ): Request? {
         var nextRequest = tunnelRequest
         // Make an SSL Tunnel on the first message pair of each SSL + proxy connection.
@@ -443,8 +443,8 @@ class RealConnection(
             tunnelCodec.writeRequest(nextRequest.headers, requestLine)
             tunnelCodec.finishRequest()
             val response = tunnelCodec.readResponseHeaders(false)!!
-                .request(nextRequest)
-                .build()
+                    .request(nextRequest)
+                    .build()
             tunnelCodec.skipConnectBody(response)
 
             when (response.code) {
@@ -461,7 +461,7 @@ class RealConnection(
 
                 HTTP_PROXY_AUTH -> {
                     nextRequest = route.address.proxyAuthenticator.authenticate(route, response)
-                        ?: throw IOException("Failed to authenticate with proxy")
+                            ?: throw IOException("Failed to authenticate with proxy")
 
                     if ("close".equals(response.header("Connection"), ignoreCase = true)) {
                         return nextRequest
@@ -485,26 +485,26 @@ class RealConnection(
     @Throws(IOException::class)
     private fun createTunnelRequest(): Request {
         val proxyConnectRequest = Request.Builder()
-            .url(route.address.url)
-            .method("CONNECT", null)
-            .header("Host", route.address.url.toHostHeader(includeDefaultPort = true))
-            .header("Proxy-Connection", "Keep-Alive") // For HTTP/1.0 proxies like Squid.
-            .header("User-Agent", userAgent)
-            .build()
+                .url(route.address.url)
+                .method("CONNECT", null)
+                .header("Host", route.address.url.toHostHeader(includeDefaultPort = true))
+                .header("Proxy-Connection", "Keep-Alive") // For HTTP/1.0 proxies like Squid.
+                .header("User-Agent", userAgent)
+                .build()
 
         val fakeAuthChallengeResponse = Response.Builder()
-            .request(proxyConnectRequest)
-            .protocol(Protocol.HTTP_1_1)
-            .code(HTTP_PROXY_AUTH)
-            .message("Preemptive Authenticate")
-            .body(EMPTY_RESPONSE)
-            .sentRequestAtMillis(-1L)
-            .receivedResponseAtMillis(-1L)
-            .header("Proxy-Authenticate", "OkHttp-Preemptive")
-            .build()
+                .request(proxyConnectRequest)
+                .protocol(Protocol.HTTP_1_1)
+                .code(HTTP_PROXY_AUTH)
+                .message("Preemptive Authenticate")
+                .body(EMPTY_RESPONSE)
+                .sentRequestAtMillis(-1L)
+                .receivedResponseAtMillis(-1L)
+                .header("Proxy-Authenticate", "OkHttp-Preemptive")
+                .build()
 
         val authenticatedRequest = route.address.proxyAuthenticator
-            .authenticate(route, fakeAuthChallengeResponse)
+                .authenticate(route, fakeAuthChallengeResponse)
 
         return authenticatedRequest ?: proxyConnectRequest
     }
@@ -559,8 +559,8 @@ class RealConnection(
     private fun routeMatchesAny(candidates: List<Route>): Boolean {
         return candidates.any {
             it.proxy.type() == Proxy.Type.DIRECT &&
-                route.proxy.type() == Proxy.Type.DIRECT &&
-                route.socketAddress == it.socketAddress
+                    route.proxy.type() == Proxy.Type.DIRECT &&
+                    route.socketAddress == it.socketAddress
         }
     }
 
@@ -577,8 +577,8 @@ class RealConnection(
 
         // We have a host mismatch. But if the certificate matches, we're still good.
         return !noCoalescedConnections &&
-            handshake != null &&
-            OkHostnameVerifier.verify(url.host, handshake!!.peerCertificates[0] as X509Certificate)
+                handshake != null &&
+                OkHostnameVerifier.verify(url.host, handshake!!.peerCertificates[0] as X509Certificate)
     }
 
     @Throws(SocketException::class)
@@ -666,7 +666,7 @@ class RealConnection(
         if (failedRoute.proxy.type() != Proxy.Type.DIRECT) {
             val address = failedRoute.address
             address.proxySelector.connectFailed(
-                address.url.toUri(), failedRoute.proxy.address(), failure)
+                    address.url.toUri(), failedRoute.proxy.address(), failure)
         }
 
         client.routeDatabase.failed(failedRoute)
@@ -720,10 +720,10 @@ class RealConnection(
 
     override fun toString(): String {
         return "Connection{${route.address.url.host}:${route.address.url.port}," +
-            " proxy=${route.proxy}" +
-            " hostAddress=${route.socketAddress}" +
-            " cipherSuite=${handshake?.cipherSuite ?: "none"}" +
-            " protocol=$protocol}"
+                " proxy=${route.proxy}" +
+                " hostAddress=${route.socketAddress}" +
+                " cipherSuite=${handshake?.cipherSuite ?: "none"}" +
+                " protocol=$protocol}"
     }
 
     companion object {
@@ -732,10 +732,10 @@ class RealConnection(
         internal const val IDLE_CONNECTION_HEALTHY_NS = 10_000_000_000 // 10 seconds.
 
         fun newTestConnection(
-            connectionPool: RealConnectionPool,
-            route: Route,
-            socket: Socket,
-            idleAtNanos: Long
+                connectionPool: RealConnectionPool,
+                route: Route,
+                socket: Socket,
+                idleAtNanos: Long
         ): RealConnection {
             val result = RealConnection(connectionPool, route)
             result.socket = socket

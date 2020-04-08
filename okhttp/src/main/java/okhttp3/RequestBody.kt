@@ -42,51 +42,34 @@ abstract class RequestBody {
     abstract fun writeTo(sink: BufferedSink)
 
     /**
-     * A duplex request body is special in how it is **transmitted** on the network and
-     * in the **API contract** between OkHttp and the application.
+     * 双工请求体在网络上以及 OkHttp 和应用程序之间的 API 协议中的传输方式是特殊的。
      *
-     * This method returns false unless it is overridden by a subclass.
+     * 除非被子类覆盖，否则此方法返回 false。
      *
-     * ### Duplex Transmission
+     * ### 双工传输
      *
-     * With regular HTTP calls the request always completes sending before the response may begin
-     * receiving. With duplex the request and response may be interleaved! That is, request body bytes
-     * may be sent after response headers or body bytes have been received.
+     * 对于常规的 HTTP 调用，请求总是在响应开始接收之前完成发送。 双工的请求和响应可以交错！ 也就是说，请求主体字节可以在接收到响应头或主体字节之后发送。
      *
-     * Though any call may be initiated as a duplex call, only web servers that are specially
-     * designed for this nonstandard interaction will use it. As of 2019-01, the only widely-used
-     * implementation of this pattern is [gRPC][grpc].
+     * 虽然任何呼叫都可以以双工呼叫的形式启动，但只有专门为这种非标准交互设计的 web 服务器才会使用它。 截至2019-01年，该模式唯一广泛使用的实现是 gRPC。
      *
-     * Because the encoding of interleaved data is not well-defined for HTTP/1, duplex request
-     * bodies may only be used with HTTP/2. Calls to HTTP/1 servers will fail before the HTTP request
-     * is transmitted. If you cannot ensure that your client and server both support HTTP/2, do not
-     * use this feature.
+     * 由于交织数据的编码对于 http / 1没有很好的定义，双工请求体只能与 http / 2一起使用。 在传输 HTTP 请求之前，对 HTTP / 1服务器的调用将失败。 如果您不能确保您的客户机和服务器都支持 http / 2，那么不要使用这个特性。
      *
      * ### Duplex APIs
      *
-     * With regular request bodies it is not legal to write bytes to the sink passed to
-     * [RequestBody.writeTo] after that method returns. For duplex requests bodies that condition is
-     * lifted. Such writes occur on an application-provided thread and may occur concurrently with
-     * reads of the [ResponseBody]. For duplex request bodies, [writeTo] should return
-     * quickly, possibly by handing off the provided request body to another thread to perform
-     * writing.
+     * 对于常规的请求函数体，向传递给 RequestBody.writeTo 的接收器写入字节是不合法的。 对于双工请求主体，该条件被解除。 这样的写操作发生在应用程序提供的线程上，并且可能与响应主体的读操作同时发生。 对于双工请求主体，writeTo 应该快速返回，可能是将提供的请求主体交给另一个线程执行写操作。
      *
      * [grpc]: https://github.com/grpc/grpc/blob/master/doc/PROTOCOL-HTTP2.md
      */
     open fun isDuplex(): Boolean = false
 
     /**
-     * Returns true if this body expects at most one call to [writeTo] and can be transmitted
-     * at most once. This is typically used when writing the request body is destructive and it is not
-     * possible to recreate the request body after it has been sent.
+     * 如果此机构期望最多调用 writeTo 一次，并且最多可以传输一次，则返回 true。 当写入请求主体具有破坏性且在发送请求主体之后不可能重新创建请求主体时，通常使用这种方法。
      *
-     * This method returns false unless it is overridden by a subclass.
+     * 除非被子类覆盖，否则此方法返回 false。
      *
-     * By default OkHttp will attempt to retransmit request bodies when the original request fails
-     * due to any of:
+     * 默认情况下，当原始请求由于以下任何原因而失败时，OkHttp 会尝试重新传输请求主体:
      *
-     *  * A stale connection. The request was made on a reused connection and that reused connection
-     *    has since been closed by the server.
+     *  * 一个陈旧的连接。 请求是在一个重用的连接上发出的，该重用的连接已经被服务器关闭
      *  * A client timeout (HTTP 408).
      *  * A authorization challenge (HTTP 401 and 407) that is satisfied by the [Authenticator].
      *  * A retryable server failure (HTTP 503 with a `Retry-After: 0` response header).
@@ -138,9 +121,9 @@ abstract class RequestBody {
         @JvmStatic
         @JvmName("create")
         fun ByteArray.toRequestBody(
-            contentType: MediaType? = null,
-            offset: Int = 0,
-            byteCount: Int = size
+                contentType: MediaType? = null,
+                offset: Int = 0,
+                byteCount: Int = size
         ): RequestBody {
             checkOffsetAndCount(size.toLong(), offset.toLong(), byteCount.toLong())
             return object : RequestBody() {
@@ -171,51 +154,51 @@ abstract class RequestBody {
 
         @JvmStatic
         @Deprecated(
-            message = "Moved to extension function. Put the 'content' argument first to fix Java",
-            replaceWith = ReplaceWith(
-                expression = "content.toRequestBody(contentType)",
-                imports = ["okhttp3.RequestBody.Companion.toRequestBody"]
-            ),
-            level = DeprecationLevel.WARNING)
+                message = "Moved to extension function. Put the 'content' argument first to fix Java",
+                replaceWith = ReplaceWith(
+                        expression = "content.toRequestBody(contentType)",
+                        imports = ["okhttp3.RequestBody.Companion.toRequestBody"]
+                ),
+                level = DeprecationLevel.WARNING)
         fun create(contentType: MediaType?, content: String) = content.toRequestBody(contentType)
 
         @JvmStatic
         @Deprecated(
-            message = "Moved to extension function. Put the 'content' argument first to fix Java",
-            replaceWith = ReplaceWith(
-                expression = "content.toRequestBody(contentType)",
-                imports = ["okhttp3.RequestBody.Companion.toRequestBody"]
-            ),
-            level = DeprecationLevel.WARNING)
+                message = "Moved to extension function. Put the 'content' argument first to fix Java",
+                replaceWith = ReplaceWith(
+                        expression = "content.toRequestBody(contentType)",
+                        imports = ["okhttp3.RequestBody.Companion.toRequestBody"]
+                ),
+                level = DeprecationLevel.WARNING)
         fun create(
-            contentType: MediaType?,
-            content: ByteString
+                contentType: MediaType?,
+                content: ByteString
         ): RequestBody = content.toRequestBody(contentType)
 
         @JvmOverloads
         @JvmStatic
         @Deprecated(
-            message = "Moved to extension function. Put the 'content' argument first to fix Java",
-            replaceWith = ReplaceWith(
-                expression = "content.toRequestBody(contentType, offset, byteCount)",
-                imports = ["okhttp3.RequestBody.Companion.toRequestBody"]
-            ),
-            level = DeprecationLevel.WARNING)
+                message = "Moved to extension function. Put the 'content' argument first to fix Java",
+                replaceWith = ReplaceWith(
+                        expression = "content.toRequestBody(contentType, offset, byteCount)",
+                        imports = ["okhttp3.RequestBody.Companion.toRequestBody"]
+                ),
+                level = DeprecationLevel.WARNING)
         fun create(
-            contentType: MediaType?,
-            content: ByteArray,
-            offset: Int = 0,
-            byteCount: Int = content.size
+                contentType: MediaType?,
+                content: ByteArray,
+                offset: Int = 0,
+                byteCount: Int = content.size
         ) = content.toRequestBody(contentType, offset, byteCount)
 
         @JvmStatic
         @Deprecated(
-            message = "Moved to extension function. Put the 'file' argument first to fix Java",
-            replaceWith = ReplaceWith(
-                expression = "file.asRequestBody(contentType)",
-                imports = ["okhttp3.RequestBody.Companion.asRequestBody"]
-            ),
-            level = DeprecationLevel.WARNING)
+                message = "Moved to extension function. Put the 'file' argument first to fix Java",
+                replaceWith = ReplaceWith(
+                        expression = "file.asRequestBody(contentType)",
+                        imports = ["okhttp3.RequestBody.Companion.asRequestBody"]
+                ),
+                level = DeprecationLevel.WARNING)
         fun create(contentType: MediaType?, file: File) = file.asRequestBody(contentType)
     }
 }

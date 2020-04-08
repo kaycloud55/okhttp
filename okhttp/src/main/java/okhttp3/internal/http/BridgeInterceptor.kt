@@ -27,9 +27,8 @@ import okio.buffer
 import sun.net.www.protocol.http.HttpURLConnection.userAgent
 
 /**
- * Bridges from application code to network code. First it builds a network request from a user
- * request. Then it proceeds to call the network. Finally it builds a user response from the network
- * response.
+ * 应用层和网络层的桥接拦截器，主要工作是为请求添加cookie、添加固定的header，
+ * 比如Host、Content-Length、Content-Type、User-Agent等，然后保存响应结果的cookie，如果响应使用gzip解压过，则还需要进行解压。
  */
 class BridgeInterceptor(private val cookieJar: CookieJar) : Interceptor {
 
@@ -39,6 +38,7 @@ class BridgeInterceptor(private val cookieJar: CookieJar) : Interceptor {
         val requestBuilder = userRequest.newBuilder()
 
         val body = userRequest.body
+        //根据请求体，为header添加一次参数
         if (body != null) {
             val contentType = body.contentType()
             if (contentType != null) {
@@ -60,18 +60,17 @@ class BridgeInterceptor(private val cookieJar: CookieJar) : Interceptor {
         }
 
         if (userRequest.header("Connection") == null) {
-            requestBuilder.header("Connection", "Keep-Alive")
+            requestBuilder.header("Connection", "Keep-Alive") //默认长连接
         }
 
-        // If we add an "Accept-Encoding: gzip" header field we're responsible for also decompressing
-        // the transfer stream.
+        // OkHttp添加了 "Accept-Encoding: gzip"头字段的话，OkHttp也要负责解压。
         var transparentGzip = false
         if (userRequest.header("Accept-Encoding") == null && userRequest.header("Range") == null) {
             transparentGzip = true
             requestBuilder.header("Accept-Encoding", "gzip")
         }
 
-        val cookies = cookieJar.loadForRequest(userRequest.url)
+        val cookies = cookieJar.loadForRequest(userRequest.url) //根据url找可用的cookie
         if (cookies.isNotEmpty()) {
             requestBuilder.header("Cookie", cookieHeader(cookies))
         }
@@ -79,24 +78,25 @@ class BridgeInterceptor(private val cookieJar: CookieJar) : Interceptor {
         if (userRequest.header("User-Agent") == null) {
             requestBuilder.header("User-Agent", userAgent)
         }
-
+        //交给下一级去处理，这里的chain就是下一级
         val networkResponse = chain.proceed(requestBuilder.build())
 
         cookieJar.receiveHeaders(userRequest.url, networkResponse.headers)
 
         val responseBuilder = networkResponse.newBuilder()
-            .request(userRequest)
+                .request(userRequest)
 
+        //如果OkHttp自动添加了gzip的话，也要负责解压的工作
         if (transparentGzip &&
-            "gzip".equals(networkResponse.header("Content-Encoding"), ignoreCase = true) &&
-            networkResponse.promisesBody()) {
+                "gzip".equals(networkResponse.header("Content-Encoding"), ignoreCase = true) &&
+                networkResponse.promisesBody()) {
             val responseBody = networkResponse.body
             if (responseBody != null) {
                 val gzipSource = GzipSource(responseBody.source())
                 val strippedHeaders = networkResponse.headers.newBuilder()
-                    .removeAll("Content-Encoding")
-                    .removeAll("Content-Length")
-                    .build()
+                        .removeAll("Content-Encoding")
+                        .removeAll("Content-Length")
+                        .build()
                 responseBuilder.headers(strippedHeaders)
                 val contentType = networkResponse.header("Content-Type")
                 responseBuilder.body(RealResponseBody(contentType, -1L, gzipSource.buffer()))

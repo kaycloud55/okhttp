@@ -22,9 +22,7 @@ import okhttp3.internal.http.HttpMethod
 import okhttp3.internal.toImmutableMap
 
 /**
- * An HTTP request. Instances of this class are immutable if their [body] is null or itself
- * immutable.
- * HTTP请求的抽象。这个类的实例是不可变的。
+ * HTTP请求的抽象。如果它的这[body]请求体是空的话或者它自身是不可变的话，那它的实例也是不可变的。
  */
 class Request internal constructor(
         @get:JvmName("url") val url: HttpUrl,

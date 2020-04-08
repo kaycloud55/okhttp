@@ -19,21 +19,16 @@ import java.io.IOException
 
 interface Callback {
     /**
-     * Called when the request could not be executed due to cancellation, a connectivity problem or
-     * timeout. Because networks can fail during an exchange, it is possible that the remote server
-     * accepted the request before the failure.
+     * 当由于取消、连接性问题或超时而无法执行请求时调用。 因为网络在交换期间可能会失败，所以远程服务器可能在失败之前接受请求。
      */
     fun onFailure(call: Call, e: IOException)
 
     /**
-     * Called when the HTTP response was successfully returned by the remote server. The callback may
-     * proceed to read the response body with [Response.body]. The response is still live until its
-     * response body is [closed][ResponseBody]. The recipient of the callback may consume the response
-     * body on another thread.
+     * 当远程服务器成功返回 HTTP 响应时调用。
+     * 可以在回调里面继续读取带有 [Response.body] 的响应体。
+     * 响应仍然是active的，直到它的响应主体被关闭。 回调的接收方可能使用另一个线程上的响应体。
      *
-     * Note that transport-layer success (receiving a HTTP response code, headers and body) does not
-     * necessarily indicate application-layer success: `response` may still indicate an unhappy HTTP
-     * response code like 404 or 500.
+     * 请注意，传输层成功(接收 HTTP 响应代码、头和正文)并不一定表示应用层成功: 响应可能仍然表示不满意的 HTTP 响应代码，如404或500。
      */
     @Throws(IOException::class)
     fun onResponse(call: Call, response: Response)

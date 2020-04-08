@@ -116,7 +116,7 @@ import org.codehaus.mojo.animal_sniffer.IgnoreJRERequirement
  * remain idle.
  */
 open class OkHttpClient internal constructor(
-    builder: Builder
+        builder: Builder
 ) : Cloneable, Call.Factory, WebSocket.Factory {
 
     /**
@@ -138,7 +138,7 @@ open class OkHttpClient internal constructor(
      */
     @get:JvmName("interceptors")
     val interceptors: List<Interceptor> =
-        builder.interceptors.toImmutableList()
+            builder.interceptors.toImmutableList()
 
     /**
      * Returns an immutable list of interceptors that observe a single network request and response.
@@ -180,15 +180,15 @@ open class OkHttpClient internal constructor(
 
     @get:JvmName("proxySelector")
     val proxySelector: ProxySelector =
-        when {
-            // Defer calls to ProxySelector.getDefault() because it can throw a SecurityException.
-            builder.proxy != null -> NullProxySelector
-            else -> builder.proxySelector ?: ProxySelector.getDefault() ?: NullProxySelector
-        }
+            when {
+                // Defer calls to ProxySelector.getDefault() because it can throw a SecurityException.
+                builder.proxy != null -> NullProxySelector
+                else -> builder.proxySelector ?: ProxySelector.getDefault() ?: NullProxySelector
+            }
 
     @get:JvmName("proxyAuthenticator")
     val proxyAuthenticator: Authenticator =
-        builder.proxyAuthenticator
+            builder.proxyAuthenticator
 
     @get:JvmName("socketFactory")
     val socketFactory: SocketFactory = builder.socketFactory
@@ -204,7 +204,7 @@ open class OkHttpClient internal constructor(
 
     @get:JvmName("connectionSpecs")
     val connectionSpecs: List<ConnectionSpec> =
-        builder.connectionSpecs
+            builder.connectionSpecs
 
     @get:JvmName("protocols") //支持的协议版本
     val protocols: List<Protocol> = builder.protocols
@@ -261,7 +261,7 @@ open class OkHttpClient internal constructor(
         }
 
         this.certificatePinner = builder.certificatePinner
-            .withCertificateChainCleaner(certificateChainCleaner)
+                .withCertificateChainCleaner(certificateChainCleaner)
 
         check(null !in (interceptors as List<Interceptor?>)) {
             "Null interceptor: $interceptors"
@@ -271,17 +271,20 @@ open class OkHttpClient internal constructor(
         }
     }
 
-    /** Prepares the [request] to be executed at some point in the future. */
+    /** 根据request创建一个新的Call。
+     *  request和Call有什么区别？
+     *  Call是对整个请求流程的封装。
+     */
     override fun newCall(request: Request): Call = RealCall(this, request, forWebSocket = false)
 
     /** Uses [request] to connect a new web socket. */
     override fun newWebSocket(request: Request, listener: WebSocketListener): WebSocket {
         val webSocket = RealWebSocket(
-            TaskRunner.INSTANCE,
-            request,
-            listener,
-            Random(),
-            pingIntervalMillis.toLong()
+                TaskRunner.INSTANCE,
+                request,
+                listener,
+                Random(),
+                pingIntervalMillis.toLong()
         )
         webSocket.connect(this)
         return webSocket
@@ -541,7 +544,7 @@ open class OkHttpClient internal constructor(
         }
 
         /**
-         * Sets the dispatcher used to set policy and execute asynchronous requests. Must not be null.
+         * 外部可以设置Dispatcher来指定内部的异步请求的执行策略。
          */
         fun dispatcher(dispatcher: Dispatcher) = apply {
             this.dispatcher = dispatcher
@@ -556,9 +559,8 @@ open class OkHttpClient internal constructor(
         }
 
         /**
-         * Returns a modifiable list of interceptors that observe the full span of each call: from
-         * before the connection is established (if any) until after the response source is selected
-         * (either the origin server, cache, or both).
+         * 返回一个不可变的list：包含了可以监听到每个Call的整个生命周期的interceptor：
+         * 从连接建立之前，知道response被选中（这里选中的意思是response可能来自server，也可能来自cache，或者都有）。
          */
         fun interceptors(): MutableList<Interceptor> = interceptors
 
@@ -569,7 +571,7 @@ open class OkHttpClient internal constructor(
 
         @JvmName("-addInterceptor") // "-"前缀可以禁止重载
         inline fun addInterceptor(crossinline block: (chain: Interceptor.Chain) -> Response) =
-            addInterceptor(Interceptor { chain -> block(chain) })
+                addInterceptor(Interceptor { chain -> block(chain) })
 
         /**
          * Returns a modifiable list of interceptors that observe a single network request and response.
@@ -584,7 +586,7 @@ open class OkHttpClient internal constructor(
 
         @JvmName("-addNetworkInterceptor") // Prefix with '-' to prevent ambiguous overloads from Java.
         inline fun addNetworkInterceptor(crossinline block: (chain: Interceptor.Chain) -> Response) =
-            addNetworkInterceptor(Interceptor { chain -> block(chain) })
+                addNetworkInterceptor(Interceptor { chain -> block(chain) })
 
         /**
          * Configure a single client scoped listener that will receive all analytic events for this
@@ -750,8 +752,8 @@ open class OkHttpClient internal constructor(
          *     `sslSocketFactory(SSLSocketFactory, X509TrustManager)`, which avoids such reflection.
          */
         @Deprecated(
-            message = "Use the sslSocketFactory overload that accepts a X509TrustManager.",
-            level = DeprecationLevel.ERROR
+                message = "Use the sslSocketFactory overload that accepts a X509TrustManager.",
+                level = DeprecationLevel.ERROR
         )
         fun sslSocketFactory(sslSocketFactory: SSLSocketFactory) = apply {
             if (sslSocketFactory != this.sslSocketFactoryOrNull) {
@@ -808,8 +810,8 @@ open class OkHttpClient internal constructor(
          * See [android.net.http.X509TrustManagerExtensions] for more information.
          */
         fun sslSocketFactory(
-            sslSocketFactory: SSLSocketFactory,
-            trustManager: X509TrustManager
+                sslSocketFactory: SSLSocketFactory,
+                trustManager: X509TrustManager
         ) = apply {
             if (sslSocketFactory != this.sslSocketFactoryOrNull || trustManager != this.x509TrustManagerOrNull) {
                 this.routeDatabase = null
@@ -1066,7 +1068,7 @@ open class OkHttpClient internal constructor(
         internal val DEFAULT_PROTOCOLS = immutableListOf(HTTP_2, HTTP_1_1)
 
         internal val DEFAULT_CONNECTION_SPECS = immutableListOf(
-            ConnectionSpec.MODERN_TLS, ConnectionSpec.CLEARTEXT)
+                ConnectionSpec.MODERN_TLS, ConnectionSpec.CLEARTEXT)
 
         private fun newSslSocketFactory(trustManager: X509TrustManager): SSLSocketFactory {
             try {

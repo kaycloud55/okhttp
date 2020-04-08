@@ -41,29 +41,29 @@ private val STANDARD_DATE_FORMAT = object : ThreadLocal<DateFormat>() {
 
 /** If we fail to parse a date in a non-standard format, try each of these formats in sequence. */
 private val BROWSER_COMPATIBLE_DATE_FORMAT_STRINGS = arrayOf(
-    // HTTP formats required by RFC2616 but with any timezone.
-    "EEE, dd MMM yyyy HH:mm:ss zzz", // RFC 822, updated by RFC 1123 with any TZ
-    "EEEE, dd-MMM-yy HH:mm:ss zzz", // RFC 850, obsoleted by RFC 1036 with any TZ.
-    "EEE MMM d HH:mm:ss yyyy", // ANSI C's asctime() format
-    // Alternative formats.
-    "EEE, dd-MMM-yyyy HH:mm:ss z",
-    "EEE, dd-MMM-yyyy HH-mm-ss z",
-    "EEE, dd MMM yy HH:mm:ss z",
-    "EEE dd-MMM-yyyy HH:mm:ss z",
-    "EEE dd MMM yyyy HH:mm:ss z",
-    "EEE dd-MMM-yyyy HH-mm-ss z",
-    "EEE dd-MMM-yy HH:mm:ss z",
-    "EEE dd MMM yy HH:mm:ss z",
-    "EEE,dd-MMM-yy HH:mm:ss z",
-    "EEE,dd-MMM-yyyy HH:mm:ss z",
-    "EEE, dd-MM-yyyy HH:mm:ss z",
+        // HTTP formats required by RFC2616 but with any timezone.
+        "EEE, dd MMM yyyy HH:mm:ss zzz", // RFC 822, updated by RFC 1123 with any TZ
+        "EEEE, dd-MMM-yy HH:mm:ss zzz", // RFC 850, obsoleted by RFC 1036 with any TZ.
+        "EEE MMM d HH:mm:ss yyyy", // ANSI C's asctime() format
+        // Alternative formats.
+        "EEE, dd-MMM-yyyy HH:mm:ss z",
+        "EEE, dd-MMM-yyyy HH-mm-ss z",
+        "EEE, dd MMM yy HH:mm:ss z",
+        "EEE dd-MMM-yyyy HH:mm:ss z",
+        "EEE dd MMM yyyy HH:mm:ss z",
+        "EEE dd-MMM-yyyy HH-mm-ss z",
+        "EEE dd-MMM-yy HH:mm:ss z",
+        "EEE dd MMM yy HH:mm:ss z",
+        "EEE,dd-MMM-yy HH:mm:ss z",
+        "EEE,dd-MMM-yyyy HH:mm:ss z",
+        "EEE, dd-MM-yyyy HH:mm:ss z",
 
-    /* RI bug 6641315 claims a cookie of this format was once served by www.yahoo.com */
-    "EEE MMM d yyyy HH:mm:ss z"
+        /* RI bug 6641315 claims a cookie of this format was once served by www.yahoo.com */
+        "EEE MMM d yyyy HH:mm:ss z"
 )
 
 private val BROWSER_COMPATIBLE_DATE_FORMATS =
-    arrayOfNulls<DateFormat>(BROWSER_COMPATIBLE_DATE_FORMAT_STRINGS.size)
+        arrayOfNulls<DateFormat>(BROWSER_COMPATIBLE_DATE_FORMAT_STRINGS.size)
 
 /** Returns the date for this string, or null if the value couldn't be parsed. */
 internal fun String.toHttpDateOrNull(): Date? {

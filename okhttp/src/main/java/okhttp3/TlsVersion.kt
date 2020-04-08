@@ -20,7 +20,7 @@ package okhttp3
  * [javax.net.ssl.SSLSocket.setEnabledProtocols].
  */
 enum class TlsVersion(
-    @get:JvmName("javaName") val javaName: String
+        @get:JvmName("javaName") val javaName: String
 ) {
     TLS_1_3("TLSv1.3"), // 2016.
     TLS_1_2("TLSv1.2"), // 2008.

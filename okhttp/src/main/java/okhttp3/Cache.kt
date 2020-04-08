@@ -50,8 +50,7 @@ import okio.Source
 import okio.buffer
 
 /**
- * Caches HTTP and HTTPS responses to the filesystem so they may be reused, saving time and
- * bandwidth.
+ * 缓存 HTTP 和 HTTPS 响应文件系统，这样就可以重用它们，节省时间和带宽。
  *
  * ## 缓存优化
  *
@@ -61,17 +60,10 @@ import okio.buffer
  *  * **[请求通过网络的次数:][networkCount]** 上面的那些请求，使用网络的次数
  *  * **[请求命中缓存的次数:][hitCount]** 上面的那些请求，直接从缓存返回的次数
  *
- * Sometimes a request will result in a conditional cache hit. If the cache contains a stale copy of
- * the response, the client will issue a conditional `GET`. The server will then send either
- * the updated response if it has changed, or a short 'not modified' response if the client's copy
- * is still valid. Such responses increment both the network count and hit count.
- *
  * 某些情况下，请求可能会导致"有条件的"缓存命中。比如since-not-modified的header，就需要先向服务器验证当前缓存是否可用，
  * 如果服务器返回not modified，就会导致即通过网络发送了请求，也命中了本地缓存，同时会增加[networkCount]和[hitCount]
  *
- * 提高缓存命中率的最有效的方法就是让服务端返回可缓存的响应.
- * Although this client honors all [HTTP/1.1 (RFC 7234)][rfc_7234] cache headers, it
- * doesn't cache partial responses.
+ * 提高缓存命中率的最佳方法是配置 web 服务器返回可缓存的响应。 尽管这个客户端支持所有 http / 1.1(RFC 7234)缓存头，但它不缓存部分响应。
  *
  * ## 强制通过网络发送请求
  *
@@ -86,8 +78,7 @@ import okio.buffer
  *     .build();
  * ```
  *
- * If it is only necessary to force a cached response to be validated by the server, use the more
- * efficient `max-age=0` directive instead:
+ * 如果只需要强制缓存的响应由服务器进行验证，那么使用效率更高的 max-age 0指令:
  *
  * ```
  * Request request = new Request.Builder()
@@ -100,10 +91,8 @@ import okio.buffer
  *
  * ## 强制使用缓存
  *
- * Sometimes you'll want to show resources if they are available immediately, but not otherwise.
- * This can be used so your application can show *something* while waiting for the latest data to be
- * downloaded. To restrict a request to locally-cached resources, add the `only-if-cached`
- * directive:
+ * 有时候，如果资源是立即可用的，您会希望显示这些资源，但不希望显示其他资源。 这可以用来使应用程序在等待下载最新数据时显示一些内容。
+ * 若要将请求限制为本地缓存的资源，请添加 only-if-cache 指令:
  *
  * ```
  * Request request = new Request.Builder()
@@ -120,9 +109,7 @@ import okio.buffer
  * }
  * ```
  *
- * This technique works even better in situations where a stale response is better than no response.
- * To permit stale cached responses, use the `max-stale` directive with the maximum staleness in
- * seconds:
+ * 这种技术在一个陈旧的响应比没有响应更好的情况下工作得更好。 要允许缓存过时的响应，请使用 max-stale 指令，并使用以秒为单位的最大过时值:
  *
  * ```
  * Request request = new Request.Builder()
@@ -133,24 +120,23 @@ import okio.buffer
  *     .build();
  * ```
  *
- * The [CacheControl] class can configure request caching directives and parse response caching
- * directives. It even offers convenient constants [CacheControl.FORCE_NETWORK] and
- * [CacheControl.FORCE_CACHE] that address the use cases above.
+ * Cachecontrol 类可以配置请求缓存指令和解析响应缓存指令。 它甚至提供了方便的常量 CacheControl.FORCE NETWORK 和 CacheControl.FORCE CACHE，这些常量可以解决上面的用例。
  *
  * [rfc_7234]: http://tools.ietf.org/html/rfc7234
  */
 class Cache internal constructor(
-    directory: File,
-    maxSize: Long,
-    fileSystem: FileSystem
+        directory: File, //缓存的存放路径
+        maxSize: Long, //最大的缓存量，达到这个量就要清理
+        fileSystem: FileSystem
 ) : Closeable, Flushable {
+    //缓存的核心还是DiskLruCache
     internal val cache = DiskLruCache(
-        fileSystem = fileSystem,
-        directory = directory,
-        appVersion = VERSION,
-        valueCount = ENTRY_COUNT,
-        maxSize = maxSize,
-        taskRunner = TaskRunner.INSTANCE
+            fileSystem = fileSystem,
+            directory = directory,
+            appVersion = VERSION,
+            valueCount = ENTRY_COUNT,
+            maxSize = maxSize,
+            taskRunner = TaskRunner.INSTANCE
     )
 
     // read and write statistics, all guarded by 'this'.
@@ -169,19 +155,19 @@ class Cache internal constructor(
     internal fun get(request: Request): Response? {
         val key = key(request.url) //缓存命中的key是根据url算出来的
         val snapshot: DiskLruCache.Snapshot = try {
-            cache[key] ?: return null
+            cache[key] ?: return null //拿出来的是snapshot
         } catch (_: IOException) {
             return null // Give up because the cache cannot be read.
         }
 
         val entry: Entry = try {
-            Entry(snapshot.getSource(ENTRY_METADATA))
+            Entry(snapshot.getSource(ENTRY_METADATA)) //转换成entry
         } catch (_: IOException) {
             snapshot.closeQuietly()
             return null
         }
 
-        val response = entry.response(snapshot)
+        val response = entry.response(snapshot) //转换成response
         if (!entry.matches(request, response)) {
             response.body?.closeQuietly()
             return null
@@ -190,6 +176,9 @@ class Cache internal constructor(
         return response
     }
 
+    /**
+     * 刷新缓存
+     */
     internal fun put(response: Response): CacheRequest? {
         val requestMethod = response.request.method
         //是否要刷新缓存，GET返回false
@@ -228,6 +217,9 @@ class Cache internal constructor(
         cache.remove(key(request.url))
     }
 
+    /**
+     * 更新缓存
+     */
     internal fun update(cached: Response, network: Response) {
         val entry = Entry(network)
         val snapshot = (cached.body as CacheResponseBody).snapshot
@@ -253,9 +245,10 @@ class Cache internal constructor(
      * Initialize the cache. This will include reading the journal files from the storage and building
      * up the necessary in-memory cache information.
      *
-     * The initialization time may vary depending on the journal file size and the current actual
-     * cache size. The application needs to be aware of calling this function during the
-     * initialization phase and preferably in a background worker thread.
+     * 这个方法将会读取磁盘缓存来建立必要的内存缓存，这样响应速度会更快。
+     *
+     *
+     * 根据缓存文件大小和当前的时机缓存大小，初始化时间可能会有所不同。应用程序需要在初始化阶段调用这个函数，并在是在后台线程中调用。
      *
      * 应用程序不会主动调用这个方法来初始化。当OKhttp第一次使用cache的时候，会主动调用这个方法。
      */
@@ -265,8 +258,7 @@ class Cache internal constructor(
     }
 
     /**
-     * Closes the cache and deletes all of its stored values. This will delete all files in the cache
-     * directory including files that weren't created by the cache.
+     * 关闭缓存并删除所有的缓存文件
      */
     @Throws(IOException::class)
     fun delete() {
@@ -274,8 +266,7 @@ class Cache internal constructor(
     }
 
     /**
-     * Deletes all values stored in the cache. In-flight writes to the cache will complete normally,
-     * but the corresponding responses will not be stored.
+     * 删除存储在缓存中的所有值. 对缓存的动态写操作将正常完成，但不会存储相应的响应.
      */
     @Throws(IOException::class)
     fun evictAll() {
@@ -283,10 +274,8 @@ class Cache internal constructor(
     }
 
     /**
-     * Returns an iterator over the URLs in this cache. This iterator doesn't throw
-     * `ConcurrentModificationException`, but if new responses are added while iterating, their URLs
-     * will not be returned. If existing responses are evicted during iteration, they will be absent
-     * (unless they were already returned).
+     * 返回对此缓存中的 url 的迭代器。 这个迭代器不会抛出 ConcurrentModificationException，
+     * 但是如果在迭代过程中添加了新响应，它们的 url 将不会返回。 如果现有的响应在迭代期间被驱逐，那么它们将不存在(除非它们已经被返回)。
      *
      * The iterator supports [MutableIterator.remove]. Removing a URL from the iterator evicts the
      * corresponding response from the cache. Use this to evict selected responses.
@@ -361,9 +350,9 @@ class Cache internal constructor(
 
     @JvmName("-deprecated_directory")
     @Deprecated(
-        message = "moved to val",
-        replaceWith = ReplaceWith(expression = "directory"),
-        level = DeprecationLevel.ERROR)
+            message = "moved to val",
+            replaceWith = ReplaceWith(expression = "directory"),
+            level = DeprecationLevel.ERROR)
     fun directory(): File = cache.directory
 
     /**
@@ -397,7 +386,7 @@ class Cache internal constructor(
     fun requestCount(): Int = requestCount
 
     private inner class RealCacheRequest internal constructor(
-        private val editor: DiskLruCache.Editor
+            private val editor: DiskLruCache.Editor
     ) : CacheRequest {
         private val cacheOut: Sink = editor.newSink(ENTRY_BODY)
         private val body: Sink
@@ -573,27 +562,27 @@ class Cache internal constructor(
                 sink.writeDecimalLong(varyHeaders.size.toLong()).writeByte('\n'.toInt())
                 for (i in 0 until varyHeaders.size) {
                     sink.writeUtf8(varyHeaders.name(i))
-                        .writeUtf8(": ")
-                        .writeUtf8(varyHeaders.value(i))
-                        .writeByte('\n'.toInt())
+                            .writeUtf8(": ")
+                            .writeUtf8(varyHeaders.value(i))
+                            .writeByte('\n'.toInt())
                 }
 
                 sink.writeUtf8(StatusLine(protocol, code, message).toString()).writeByte('\n'.toInt())
                 sink.writeDecimalLong((responseHeaders.size + 2).toLong()).writeByte('\n'.toInt())
                 for (i in 0 until responseHeaders.size) {
                     sink.writeUtf8(responseHeaders.name(i))
-                        .writeUtf8(": ")
-                        .writeUtf8(responseHeaders.value(i))
-                        .writeByte('\n'.toInt())
+                            .writeUtf8(": ")
+                            .writeUtf8(responseHeaders.value(i))
+                            .writeByte('\n'.toInt())
                 }
                 sink.writeUtf8(SENT_MILLIS)
-                    .writeUtf8(": ")
-                    .writeDecimalLong(sentRequestMillis)
-                    .writeByte('\n'.toInt())
+                        .writeUtf8(": ")
+                        .writeDecimalLong(sentRequestMillis)
+                        .writeByte('\n'.toInt())
                 sink.writeUtf8(RECEIVED_MILLIS)
-                    .writeUtf8(": ")
-                    .writeDecimalLong(receivedResponseMillis)
-                    .writeByte('\n'.toInt())
+                        .writeUtf8(": ")
+                        .writeDecimalLong(receivedResponseMillis)
+                        .writeByte('\n'.toInt())
 
                 if (isHttps) {
                     sink.writeByte('\n'.toInt())
@@ -641,29 +630,29 @@ class Cache internal constructor(
 
         fun matches(request: Request, response: Response): Boolean {
             return url == request.url.toString() &&
-                requestMethod == request.method &&
-                varyMatches(response, varyHeaders, request)
+                    requestMethod == request.method &&
+                    varyMatches(response, varyHeaders, request)
         }
 
         fun response(snapshot: DiskLruCache.Snapshot): Response {
             val contentType = responseHeaders["Content-Type"]
             val contentLength = responseHeaders["Content-Length"]
             val cacheRequest = Request.Builder()
-                .url(url)
-                .method(requestMethod, null)
-                .headers(varyHeaders)
-                .build()
+                    .url(url)
+                    .method(requestMethod, null)
+                    .headers(varyHeaders)
+                    .build()
             return Response.Builder()
-                .request(cacheRequest)
-                .protocol(protocol)
-                .code(code)
-                .message(message)
-                .headers(responseHeaders)
-                .body(CacheResponseBody(snapshot, contentType, contentLength))
-                .handshake(handshake)
-                .sentRequestAtMillis(sentRequestMillis)
-                .receivedResponseAtMillis(receivedResponseMillis)
-                .build()
+                    .request(cacheRequest)
+                    .protocol(protocol)
+                    .code(code)
+                    .message(message)
+                    .headers(responseHeaders)
+                    .body(CacheResponseBody(snapshot, contentType, contentLength))
+                    .handshake(handshake)
+                    .sentRequestAtMillis(sentRequestMillis)
+                    .receivedResponseAtMillis(receivedResponseMillis)
+                    .build()
         }
 
         companion object {
@@ -676,9 +665,9 @@ class Cache internal constructor(
     }
 
     private class CacheResponseBody internal constructor(
-        internal val snapshot: DiskLruCache.Snapshot,
-        private val contentType: String?,
-        private val contentLength: String?
+            internal val snapshot: DiskLruCache.Snapshot,
+            private val contentType: String?,
+            private val contentLength: String?
     ) : ResponseBody() {
         private val bodySource: BufferedSource
 
@@ -728,9 +717,9 @@ class Cache internal constructor(
          * [newRequest].
          */
         fun varyMatches(
-            cachedResponse: Response,
-            cachedRequest: Headers,
-            newRequest: Request
+                cachedResponse: Response,
+                cachedRequest: Headers,
+                newRequest: Request
         ): Boolean {
             return cachedResponse.headers.varyFields().none {
                 cachedRequest.values(it) != newRequest.headers(it)

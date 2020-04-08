@@ -35,14 +35,13 @@ import okio.buffer
 
 /**
  * 用来发送单个请求和获取响应，组建一个完整的整体。这一层的连接管理和事件处理都交给[ExchangeCodec]
- * Transmits a single HTTP request and a response pair. This layers connection management and events
- * on [ExchangeCodec], which handles the actual I/O.
+ * 主要是对IO的操作封装。
  */
 class Exchange(
-    internal val call: RealCall,
-    internal val eventListener: EventListener,
-    private val finder: ExchangeFinder,
-    private val codec: ExchangeCodec
+        internal val call: RealCall,
+        internal val eventListener: EventListener,
+        private val finder: ExchangeFinder,
+        private val codec: ExchangeCodec
 ) {
     /** Returns true if the request body need not complete before the response body starts. */
     internal var isDuplex: Boolean = false
@@ -169,10 +168,10 @@ class Exchange(
     }
 
     fun <E : IOException?> bodyComplete(
-        bytesRead: Long,
-        responseDone: Boolean,
-        requestDone: Boolean,
-        e: E
+            bytesRead: Long,
+            responseDone: Boolean,
+            requestDone: Boolean,
+            e: E
     ): E {
         if (e != null) {
             trackFailure(e)
@@ -200,9 +199,9 @@ class Exchange(
 
     /** A request body that fires events when it completes. */
     private inner class RequestBodySink internal constructor(
-        delegate: Sink,
-        /** The exact number of bytes to be written, or -1L if that is unknown. */
-        private val contentLength: Long
+            delegate: Sink,
+            /** The exact number of bytes to be written, or -1L if that is unknown. */
+            private val contentLength: Long
     ) : ForwardingSink(delegate) {
         private var completed = false
         private var bytesReceived = 0L
@@ -213,7 +212,7 @@ class Exchange(
             check(!closed) { "closed" }
             if (contentLength != -1L && bytesReceived + byteCount > contentLength) {
                 throw ProtocolException(
-                    "expected $contentLength bytes but received ${bytesReceived + byteCount}")
+                        "expected $contentLength bytes but received ${bytesReceived + byteCount}")
             }
             try {
                 super.write(source, byteCount)
@@ -256,8 +255,8 @@ class Exchange(
 
     /** A response body that fires events when it completes. */
     internal inner class ResponseBodySource(
-        delegate: Source,
-        private val contentLength: Long
+            delegate: Source,
+            private val contentLength: Long
     ) : ForwardingSource(delegate) {
         private var bytesReceived = 0L
         private var invokeStartEvent = true

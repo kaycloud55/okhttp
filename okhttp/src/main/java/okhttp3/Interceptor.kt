@@ -19,10 +19,9 @@ import java.io.IOException
 import java.util.concurrent.TimeUnit
 
 /**
- * Observes, modifies, and potentially short-circuits requests going out and the corresponding responses coming back in.
- * 观察，修改请求，并可能使发出的请求和返回的响应短路。
- * Typically interceptors add, remove, or transform headers on the request or response.
- * 例如可以通过添加拦截器来添加header、转换请求等。
+ * 实现网络监听、请求以及响应重写，请求失败重试等。
+ *
+ * interceptor和networkInterceptor.
  */
 interface Interceptor {
     @Throws(IOException::class)

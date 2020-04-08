@@ -30,41 +30,41 @@ import okio.Buffer
  * each [FileOperator] should not be.
  */
 internal class FileOperator(
-  private val fileChannel: FileChannel
+        private val fileChannel: FileChannel
 ) {
 
-  /** Write [byteCount] bytes from [source] to the file at [pos]. */
-  @Throws(IOException::class)
-  fun write(pos: Long, source: Buffer, byteCount: Long) {
-    if (byteCount < 0L || byteCount > source.size) {
-      throw IndexOutOfBoundsException()
-    }
-    var mutablePos = pos
-    var mutableByteCount = byteCount
+    /** Write [byteCount] bytes from [source] to the file at [pos]. */
+    @Throws(IOException::class)
+    fun write(pos: Long, source: Buffer, byteCount: Long) {
+        if (byteCount < 0L || byteCount > source.size) {
+            throw IndexOutOfBoundsException()
+        }
+        var mutablePos = pos
+        var mutableByteCount = byteCount
 
-    while (mutableByteCount > 0L) {
-      val bytesWritten = fileChannel.transferFrom(source, mutablePos, mutableByteCount)
-      mutablePos += bytesWritten
-      mutableByteCount -= bytesWritten
+        while (mutableByteCount > 0L) {
+            val bytesWritten = fileChannel.transferFrom(source, mutablePos, mutableByteCount)
+            mutablePos += bytesWritten
+            mutableByteCount -= bytesWritten
+        }
     }
-  }
 
-  /**
-   * Copy [byteCount] bytes from the file at [pos] into `source`. It is the
-   * caller's responsibility to make sure there are sufficient bytes to read: if there aren't this
-   * method throws an `EOFException`.
-   */
-  fun read(pos: Long, sink: Buffer, byteCount: Long) {
-    if (byteCount < 0L) {
-      throw IndexOutOfBoundsException()
-    }
-    var mutablePos = pos
-    var mutableByteCount = byteCount
+    /**
+     * Copy [byteCount] bytes from the file at [pos] into `source`. It is the
+     * caller's responsibility to make sure there are sufficient bytes to read: if there aren't this
+     * method throws an `EOFException`.
+     */
+    fun read(pos: Long, sink: Buffer, byteCount: Long) {
+        if (byteCount < 0L) {
+            throw IndexOutOfBoundsException()
+        }
+        var mutablePos = pos
+        var mutableByteCount = byteCount
 
-    while (mutableByteCount > 0L) {
-      val bytesRead = fileChannel.transferTo(mutablePos, mutableByteCount, sink)
-      mutablePos += bytesRead
-      mutableByteCount -= bytesRead
+        while (mutableByteCount > 0L) {
+            val bytesRead = fileChannel.transferTo(mutablePos, mutableByteCount, sink)
+            mutablePos += bytesRead
+            mutableByteCount -= bytesRead
+        }
     }
-  }
 }

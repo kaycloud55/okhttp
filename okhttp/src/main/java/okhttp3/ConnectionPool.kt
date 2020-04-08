@@ -21,39 +21,37 @@ import okhttp3.internal.concurrent.TaskRunner
 import okhttp3.internal.connection.RealConnectionPool
 
 /**
+ * 连接池。
  * 管理HTTP 和 HTTP/2的连接重用，减少网络延迟。
  * 共享[Address]的HTTP请求会共享一个[Connection]
  * This class implements the policy of which connections to keep open for future use.
  *
- * @constructor Create a new connection pool with tuning parameters appropriate for a single-user
- * application. The tuning parameters in this pool are subject to change in future OkHttp releases.
- * Currently this pool holds up to 5 idle connections which will be evicted after 5 minutes of
- * inactivity.
+ * 这个类实现了每个连接保持open。
+ *
  * 在当前版本的连接池管理，最多保持5个空闲的连接，如果超过5分钟没有被使用，就会被释放。
+ *
+ * 这里其实和线程池类似，每个连接对一个线程，对于IDLE的链接，都会有超时回收时间。
  */
 class ConnectionPool internal constructor(
-    internal val delegate: RealConnectionPool
+        internal val delegate: RealConnectionPool
 ) {
     constructor(
-        maxIdleConnections: Int,
-        keepAliveDuration: Long,
-        timeUnit: TimeUnit
+            maxIdleConnections: Int, //允许的最大空闲连接
+            keepAliveDuration: Long, //keepAlive的时间
+            timeUnit: TimeUnit //keepAlive的单位
     ) : this(RealConnectionPool(
-        taskRunner = TaskRunner.INSTANCE,
-        maxIdleConnections = maxIdleConnections,
-        keepAliveDuration = keepAliveDuration,
-        timeUnit = timeUnit
+            taskRunner = TaskRunner.INSTANCE,
+            maxIdleConnections = maxIdleConnections,
+            keepAliveDuration = keepAliveDuration,
+            timeUnit = timeUnit
     ))
 
     constructor() : this(5, 5, TimeUnit.MINUTES)
 
-    /** Returns the number of idle connections in the pool. */
     fun idleConnectionCount(): Int = delegate.idleConnectionCount()
 
-    /** Returns total number of connections in the pool. */
     fun connectionCount(): Int = delegate.connectionCount()
 
-    /** Close and remove all idle connections in the pool. */
     fun evictAll() {
         delegate.evictAll()
     }

@@ -37,7 +37,7 @@ import okio.GzipSource
  * change slightly between releases. If you need a stable logging format, use your own interceptor.
  */
 class HttpLoggingInterceptor @JvmOverloads constructor(
-    private val logger: Logger = Logger.DEFAULT
+        private val logger: Logger = Logger.DEFAULT
 ) : Interceptor {
 
     @Volatile
@@ -140,9 +140,9 @@ class HttpLoggingInterceptor @JvmOverloads constructor(
 
     @JvmName("-deprecated_level")
     @Deprecated(
-        message = "moved to var",
-        replaceWith = ReplaceWith(expression = "level"),
-        level = DeprecationLevel.ERROR)
+            message = "moved to var",
+            replaceWith = ReplaceWith(expression = "level"),
+            level = DeprecationLevel.ERROR)
     fun getLevel(): Level = level
 
     @Throws(IOException::class)
@@ -161,7 +161,7 @@ class HttpLoggingInterceptor @JvmOverloads constructor(
 
         val connection = chain.connection()
         var requestStartMessage =
-            ("--> ${request.method} ${request.url}${if (connection != null) " " + connection.protocol() else ""}")
+                ("--> ${request.method} ${request.url}${if (connection != null) " " + connection.protocol() else ""}")
         if (!logHeaders && requestBody != null) {
             requestStartMessage += " (${requestBody.contentLength()}-byte body)"
         }
@@ -210,7 +210,7 @@ class HttpLoggingInterceptor @JvmOverloads constructor(
                     logger.log("--> END ${request.method} (${requestBody.contentLength()}-byte body)")
                 } else {
                     logger.log(
-                        "--> END ${request.method} (binary ${requestBody.contentLength()}-byte body omitted)")
+                            "--> END ${request.method} (binary ${requestBody.contentLength()}-byte body omitted)")
                 }
             }
         }
@@ -230,7 +230,7 @@ class HttpLoggingInterceptor @JvmOverloads constructor(
         val contentLength = responseBody.contentLength()
         val bodySize = if (contentLength != -1L) "$contentLength-byte" else "unknown-length"
         logger.log(
-            "<-- ${response.code}${if (response.message.isEmpty()) "" else ' ' + response.message} ${response.request.url} (${tookMs}ms${if (!logHeaders) ", $bodySize body" else ""})")
+                "<-- ${response.code}${if (response.message.isEmpty()) "" else ' ' + response.message} ${response.request.url} (${tookMs}ms${if (!logHeaders) ", $bodySize body" else ""})")
 
         if (logHeaders) {
             val headers = response.headers
@@ -289,6 +289,6 @@ class HttpLoggingInterceptor @JvmOverloads constructor(
     private fun bodyHasUnknownEncoding(headers: Headers): Boolean {
         val contentEncoding = headers["Content-Encoding"] ?: return false
         return !contentEncoding.equals("identity", ignoreCase = true) &&
-            !contentEncoding.equals("gzip", ignoreCase = true)
+                !contentEncoding.equals("gzip", ignoreCase = true)
     }
 }

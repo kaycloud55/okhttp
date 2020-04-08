@@ -22,15 +22,14 @@ import okhttp3.Response
 import okhttp3.internal.http.RealInterceptorChain
 
 /**
- * Opens a connection to the target server and proceeds to the next interceptor. The network might
- * be used for the returned response, or to validate a cached response with a conditional GET.
+ * 连接拦截器，内部会维护一个连接池，负责链接复用、创建连接（三次握手）、释放连接以及创建连接上的socket流。
  */
 object ConnectInterceptor : Interceptor {
-  @Throws(IOException::class)
-  override fun intercept(chain: Interceptor.Chain): Response {
-    val realChain = chain as RealInterceptorChain
-    val exchange = realChain.call.initExchange(chain)
-    val connectedChain = realChain.copy(exchange = exchange)
-    return connectedChain.proceed(realChain.request)
-  }
+    @Throws(IOException::class)
+    override fun intercept(chain: Interceptor.Chain): Response {
+        val realChain = chain as RealInterceptorChain
+        val exchange = realChain.call.initExchange(chain)
+        val connectedChain = realChain.copy(exchange = exchange)
+        return connectedChain.proceed(realChain.request)
+    }
 }

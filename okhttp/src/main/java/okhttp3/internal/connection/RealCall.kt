@@ -50,24 +50,17 @@ import okio.AsyncTimeout
 
 /**
  * HTTP应用层和网络层之间的桥梁。这个类暴露了高层次的应用层概念：连接、请求、响应、流
- * Bridge between OkHttp's application and network layers. This class exposes high-level application
- * layer primitives: connections, requests, responses, and streams.
- *
- * This class supports [asynchronous canceling][cancel]. This is intended to have the smallest
- * blast radius possible. If an HTTP/2 stream is active, canceling will cancel that stream but not
- * the other streams sharing its connection. But if the TLS handshake is still in progress then
- * canceling may break the entire connection.
  *
  * Call可以被异步取消。在HTTP/2中，取消请求会取消当前的流，但是不会影响其他的流，整个连接不会受影响。
  * 如果是还在SSL握手过程中的话，可能会中断连接的建立。
  */
 class RealCall(
-    val client: OkHttpClient,
-    /** The application's original request unadulterated by redirects or auth headers. */
-    val originalRequest: Request,
-    val forWebSocket: Boolean
+        val client: OkHttpClient,
+        /** The application's original request unadulterated by redirects or auth headers. */
+        val originalRequest: Request,
+        val forWebSocket: Boolean
 ) : Call {
-    private val connectionPool: RealConnectionPool = client.connectionPool.delegate
+    private val connectionPool: RealConnectionPool = client.connectionPool.delegate //这里有委托的设计思想
 
     private val eventListener: EventListener = client.eventListenerFactory.create(this)
 
@@ -98,6 +91,7 @@ class RealCall(
     private var executed = false
 
     /**
+     * 这个和exchange的值是一样的，只不过它的影响范围扩大到了network interceptor.
      * This is the same value as [exchange], but scoped to the execution of the network interceptors.
      * The [exchange] field is assigned to null when its streams end, which may be before or after the
      * network interceptors return.
@@ -157,6 +151,7 @@ class RealCall(
     }
 
     override fun enqueue(responseCallback: Callback) {
+        //会对当前call加锁
         synchronized(this) {
             check(!executed) { "Already Executed" }
             executed = true
@@ -173,35 +168,36 @@ class RealCall(
         eventListener.callStart(this)
     }
 
+
     @Throws(IOException::class)
     internal fun getResponseWithInterceptorChain(): Response {
         // 组装interceptors.
         val interceptors = mutableListOf<Interceptor>()
-        interceptors += client.interceptors
+        interceptors += client.interceptors //所有用户自定义的interceptor
         interceptors += RetryAndFollowUpInterceptor(client)
         interceptors += BridgeInterceptor(client.cookieJar)
         interceptors += CacheInterceptor(client.cache)
         interceptors += ConnectInterceptor
         //webSocket禁用networkInterceptor
         if (!forWebSocket) {
-            interceptors += client.networkInterceptors
+            interceptors += client.networkInterceptors //所有用户自定义的interceptor
         }
         interceptors += CallServerInterceptor(forWebSocket)
-        //责任链模式，构建Interceptor链
+        //责任链模式，创建Interceptor链
         val chain = RealInterceptorChain(
-            call = this,
-            interceptors = interceptors,
-            index = 0,
-            exchange = null,
-            request = originalRequest,
-            connectTimeoutMillis = client.connectTimeoutMillis,
-            readTimeoutMillis = client.readTimeoutMillis,
-            writeTimeoutMillis = client.writeTimeoutMillis
+                call = this,
+                interceptors = interceptors,
+                index = 0,
+                exchange = null,
+                request = originalRequest,
+                connectTimeoutMillis = client.connectTimeoutMillis,
+                readTimeoutMillis = client.readTimeoutMillis,
+                writeTimeoutMillis = client.writeTimeoutMillis
         )
 
         var calledNoMoreExchanges = false
         try {
-            //交给链条开始处理
+            //启动责任链，注意，这里开始的时候index是0
             val response = chain.proceed(originalRequest)
             //这里的关闭其实已经处理完了
             if (isCanceled()) {
@@ -224,7 +220,7 @@ class RealCall(
      * Prepare for a potential trip through all of this call's network interceptors. This prepares to
      * find an exchange to carry the request.
      *
-     * Note that an exchange will not be needed if the request is satisfied by the cache.
+     * 所谓的exchange其实也就是和服务端发生的一次数据交互，OKHTTP把这个过程抽象为了一个类。如果是缓存命中的话，就不需要exchange。
      *
      * @param newExchangeFinder true if this is not a retry and new routing can be performed.
      */
@@ -232,20 +228,24 @@ class RealCall(
         check(interceptorScopedExchange == null)
         check(exchange == null) {
             "cannot make a new request because the previous response is still open: " +
-                "please call response.close()"
+                    "please call response.close()"
         }
 
         if (newExchangeFinder) {
             this.exchangeFinder = ExchangeFinder(
-                connectionPool,
-                createAddress(request.url),
-                this,
-                eventListener
+                    connectionPool,
+                    createAddress(request.url),
+                    this,
+                    eventListener
             )
         }
     }
 
-    /** Finds a new or pooled connection to carry a forthcoming request and response. */
+    /**
+     *
+     * 找到或者是新建一个可以“池化”的链接来承载接下来要发送的请求和响应
+     *
+     * */
     internal fun initExchange(chain: RealInterceptorChain): Exchange {
         synchronized(connectionPool) {
             check(!noMoreExchanges) { "released" }
@@ -281,10 +281,10 @@ class RealCall(
      * that additional context. Otherwise [e] is returned as-is.
      */
     internal fun <E : IOException?> messageDone(
-        exchange: Exchange,
-        requestDone: Boolean,
-        responseDone: Boolean,
-        e: E
+            exchange: Exchange,
+            requestDone: Boolean,
+            responseDone: Boolean,
+            e: E
     ): E {
         var result = e
         var exchangeDone = false
@@ -433,18 +433,18 @@ class RealCall(
         }
 
         return Address(
-            uriHost = url.host,
-            uriPort = url.port,
-            dns = client.dns,
-            socketFactory = client.socketFactory,
-            sslSocketFactory = sslSocketFactory,
-            hostnameVerifier = hostnameVerifier,
-            certificatePinner = certificatePinner,
-            proxyAuthenticator = client.proxyAuthenticator,
-            proxy = client.proxy,
-            protocols = client.protocols,
-            connectionSpecs = client.connectionSpecs,
-            proxySelector = client.proxySelector
+                uriHost = url.host,
+                uriPort = url.port,
+                dns = client.dns,
+                socketFactory = client.socketFactory,
+                sslSocketFactory = sslSocketFactory,
+                hostnameVerifier = hostnameVerifier,
+                certificatePinner = certificatePinner,
+                proxyAuthenticator = client.proxyAuthenticator,
+                proxy = client.proxy,
+                protocols = client.protocols,
+                connectionSpecs = client.connectionSpecs,
+                proxySelector = client.proxySelector
         )
     }
 
@@ -456,8 +456,8 @@ class RealCall(
      */
     private fun toLoggableString(): String {
         return ((if (isCanceled()) "canceled " else "") +
-            (if (forWebSocket) "web socket" else "call") +
-            " to " + redactedUrl())
+                (if (forWebSocket) "web socket" else "call") +
+                " to " + redactedUrl())
     }
 
     internal fun redactedUrl(): String = originalRequest.url.redact()
@@ -466,12 +466,16 @@ class RealCall(
      * 异步执行的Call
      */
     internal inner class AsyncCall(
-        private val responseCallback: Callback
+            private val responseCallback: Callback
     ) : Runnable {
         @Volatile
         var callsPerHost = AtomicInteger(0)
             private set
 
+        /**
+         * 复用已经存在的call
+         * @param other 已经存在的Call
+         */
         fun reuseCallsPerHostFrom(other: AsyncCall) {
             this.callsPerHost = other.callsPerHost
         }
@@ -540,11 +544,11 @@ class RealCall(
     }
 
     internal class CallReference(
-        referent: RealCall,
-        /**
-         * Captures the stack trace at the time the Call is executed or enqueued. This is helpful for
-         * identifying the origin of connection leaks.
-         */
-        val callStackTrace: Any?
+            referent: RealCall,
+            /**
+             * Captures the stack trace at the time the Call is executed or enqueued. This is helpful for
+             * identifying the origin of connection leaks.
+             */
+            val callStackTrace: Any?
     ) : WeakReference<RealCall>(referent)
 }

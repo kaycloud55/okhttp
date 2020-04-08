@@ -25,26 +25,22 @@ import okio.ByteString.Companion.decodeBase64
 import okio.ByteString.Companion.toByteString
 
 /**
- * Constrains which certificates are trusted. Pinning certificates defends against attacks on
- * certificate authorities. It also prevents connections through man-in-the-middle certificate
- * authorities either known or unknown to the application's user.
- * This class currently pins a certificate's Subject Public Key Info as described on
- * [Adam Langley's Weblog][langley]. Pins are either base64 SHA-256 hashes as in
- * [HTTP Public Key Pinning (HPKP)][rfc_7469] or SHA-1 base64 hashes as in Chromium's
- * [static certificates][static_certificates].
+ * 约束哪些证书是受信任的。 钉住证书防止对证书颁发机构的攻击。 它还可以防止通过应用程序用户已知或未知的中间人证书权限进行连接。
+ * 此类目前固定证书的主题公共密钥信息，如 Adam Langley 的 Weblog 所述。
+ * 引脚可以是 HPKP 证书中的 base64 SHA-256哈希，也可以是 Chromium 静态证书中的 SHA-1 base64哈希。
  *
- * ## Setting up Certificate Pinning
+ * ## 设置证书
  *
- * The easiest way to pin a host is turn on pinning with a broken configuration and read the
- * expected configuration when the connection fails. Be sure to do this on a trusted network, and
- * without man-in-the-middle tools like [Charles][charles] or [Fiddler][fiddler].
+ *
+ * 固定主机最简单的方法是在连接失败时断开网络请求，打开固定并读取预期的配置。 一定要在一个可信的网络上做到这一点，
+ * 而且不要使用[Charles]或[Fiddler]这样的中间人工具。
  *
  * For example, to pin `https://publicobject.com`, start with a broken configuration:
  *
  * ```
  * String hostname = "publicobject.com";
  * CertificatePinner certificatePinner = new CertificatePinner.Builder()
- *     .add(hostname, "sha256/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=")
+ *     .add(hostname, "sha256/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=") //这里明确标记了证书
  *     .build();
  * OkHttpClient client = OkHttpClient.Builder()
  *     .certificatePinner(certificatePinner)
@@ -73,8 +69,7 @@ import okio.ByteString.Companion.toByteString
  *   at okhttp3.Connection.connectAndSetOwner(Connection.java)
  * ```
  *
- * Follow up by pasting the public key hashes from the exception into the
- * certificate pinner's configuration:
+ * 接下来，将异常中的公钥散列粘贴到 certificate pinner 的配置中:
  *
  * ```
  * CertificatePinner certificatePinner = new CertificatePinner.Builder()
@@ -87,9 +82,8 @@ import okio.ByteString.Companion.toByteString
  *
  * ## Domain Patterns
  *
- * Pinning is per-hostname and/or per-wildcard pattern. To pin both `publicobject.com` and
- * `www.publicobject.com` you must configure both hostnames. Or you may use patterns to match
- * sets of related domain names. The following forms are permitted:
+ * Pinning操作是根据主机名和/匹配符来进行匹配的. 如果要同时对`publicobject.com` 和
+ * `www.publicobject.com` 进行固定操作，就要对两个hostname都进行配置. 或者使用特定的匹配模式来操作：
  *
  *  * **Full domain name**: you may pin an exact domain name like `www.publicobject.com`. It won't
  *    match additional prefixes (`us-west.www.publicobject.com`) or suffixes (`publicobject.com`).
@@ -110,17 +104,14 @@ import okio.ByteString.Companion.toByteString
  * applies to `*.publicobject.com` and pin B applies to `api.publicobject.com`. Handshakes for
  * `api.publicobject.com` are valid if either A's or B's certificate is in the chain.
  *
- * ## Warning: Certificate Pinning is Dangerous!
+ * ## Warning: 固定证书是危险的!
  *
- * Pinning certificates limits your server team's abilities to update their TLS certificates. By
- * pinning certificates, you take on additional operational complexity and limit your ability to
- * migrate between certificate authorities. Do not use certificate pinning without the blessing of
- * your server's TLS administrator!
+ * 固定证书限制了服务端更新其TLS证书的能力. 一旦固定了证书, 将增加额外的操作复杂性，并限制了在证书颁发机构之间进行迁移的能力.
+ * 如果没有服务器的TLS管理员的批准，请不要固定证书。
  *
- * ### Note about self-signed certificates
+ * ### 关于自签名证书的注意事项
  *
- * [CertificatePinner] can not be used to pin self-signed certificate if such certificate is not
- * accepted by [javax.net.ssl.TrustManager].
+ * [CertificatePinner] 不能用来固定自签名证书，如果这个证书[javax.net.ssl.TrustManager]信任的话.
  *
  * See also [OWASP: Certificate and Public Key Pinning][owasp].
  *
@@ -133,213 +124,213 @@ import okio.ByteString.Companion.toByteString
  */
 @Suppress("NAME_SHADOWING")
 class CertificatePinner internal constructor(
-  private val pins: Set<Pin>,
-  internal val certificateChainCleaner: CertificateChainCleaner?
+        private val pins: Set<Pin>,
+        internal val certificateChainCleaner: CertificateChainCleaner?
 ) {
-  /**
-   * Confirms that at least one of the certificates pinned for `hostname` is in `peerCertificates`.
-   * Does nothing if there are no certificates pinned for `hostname`. OkHttp calls this after a
-   * successful TLS handshake, but before the connection is used.
-   *
-   * @throws SSLPeerUnverifiedException if `peerCertificates` don't match the certificates pinned
-   *     for `hostname`.
-   */
-  @Throws(SSLPeerUnverifiedException::class)
-  fun check(hostname: String, peerCertificates: List<Certificate>) {
-    return check(hostname) {
-      (certificateChainCleaner?.clean(peerCertificates, hostname) ?: peerCertificates)
-          .map { it as X509Certificate }
-    }
-  }
-
-  internal fun check(hostname: String, cleanedPeerCertificatesFn: () -> List<X509Certificate>) {
-    val pins = findMatchingPins(hostname)
-    if (pins.isEmpty()) return
-
-    val peerCertificates = cleanedPeerCertificatesFn()
-
-    for (peerCertificate in peerCertificates) {
-      // Lazily compute the hashes for each certificate.
-      var sha1: ByteString? = null
-      var sha256: ByteString? = null
-
-      for (pin in pins) {
-        when (pin.hashAlgorithm) {
-          "sha256/" -> {
-            if (sha256 == null) sha256 = peerCertificate.toSha256ByteString()
-            if (pin.hash == sha256) return // Success!
-          }
-          "sha1/" -> {
-            if (sha1 == null) sha1 = peerCertificate.toSha1ByteString()
-            if (pin.hash == sha1) return // Success!
-          }
-          else -> throw AssertionError("unsupported hashAlgorithm: ${pin.hashAlgorithm}")
+    /**
+     * Confirms that at least one of the certificates pinned for `hostname` is in `peerCertificates`.
+     * Does nothing if there are no certificates pinned for `hostname`. OkHttp calls this after a
+     * successful TLS handshake, but before the connection is used.
+     *
+     * @throws SSLPeerUnverifiedException if `peerCertificates` don't match the certificates pinned
+     *     for `hostname`.
+     */
+    @Throws(SSLPeerUnverifiedException::class)
+    fun check(hostname: String, peerCertificates: List<Certificate>) {
+        return check(hostname) {
+            (certificateChainCleaner?.clean(peerCertificates, hostname) ?: peerCertificates)
+                    .map { it as X509Certificate }
         }
-      }
     }
 
-    // If we couldn't find a matching pin, format a nice exception.
-    val message = buildString {
-      append("Certificate pinning failure!")
-      append("\n  Peer certificate chain:")
-      for (element in peerCertificates) {
-        append("\n    ")
-        append(pin(element))
-        append(": ")
-        append(element.subjectDN.name)
-      }
-      append("\n  Pinned certificates for ")
-      append(hostname)
-      append(":")
-      for (pin in pins) {
-        append("\n    ")
-        append(pin)
-      }
-    }
-    throw SSLPeerUnverifiedException(message)
-  }
+    internal fun check(hostname: String, cleanedPeerCertificatesFn: () -> List<X509Certificate>) {
+        val pins = findMatchingPins(hostname)
+        if (pins.isEmpty()) return
 
-  @Deprecated(
-      "replaced with {@link #check(String, List)}.",
-      ReplaceWith("check(hostname, peerCertificates.toList())")
-  )
-  @Throws(SSLPeerUnverifiedException::class)
-  fun check(hostname: String, vararg peerCertificates: Certificate) {
-    check(hostname, peerCertificates.toList())
-  }
+        val peerCertificates = cleanedPeerCertificatesFn()
 
-  /**
-   * Returns list of matching certificates' pins for the hostname. Returns an empty list if the
-   * hostname does not have pinned certificates.
-   */
-  internal fun findMatchingPins(hostname: String): List<Pin> {
-    var result: List<Pin> = emptyList()
-    for (pin in pins) {
-      if (pin.matches(hostname)) {
-        if (result.isEmpty()) result = mutableListOf()
-        (result as MutableList<Pin>).add(pin)
-      }
-    }
-    return result
-  }
+        for (peerCertificate in peerCertificates) {
+            // Lazily compute the hashes for each certificate.
+            var sha1: ByteString? = null
+            var sha256: ByteString? = null
 
-  /** Returns a certificate pinner that uses `certificateChainCleaner`. */
-  internal fun withCertificateChainCleaner(
-    certificateChainCleaner: CertificateChainCleaner?
-  ): CertificatePinner {
-    return if (this.certificateChainCleaner == certificateChainCleaner) {
-      this
-    } else {
-      CertificatePinner(pins, certificateChainCleaner)
-    }
-  }
-
-  override fun equals(other: Any?): Boolean {
-    return other is CertificatePinner &&
-        other.pins == pins &&
-        other.certificateChainCleaner == certificateChainCleaner
-  }
-
-  override fun hashCode(): Int {
-    var result = 37
-    result = 41 * result + pins.hashCode()
-    result = 41 * result + certificateChainCleaner.hashCode()
-    return result
-  }
-
-  internal data class Pin(
-    /** A hostname like `example.com` or a pattern like `*.example.com` (canonical form). */
-    private val pattern: String,
-    /** Either `sha1/` or `sha256/`. */
-    val hashAlgorithm: String,
-    /** The hash of the pinned certificate using [hashAlgorithm]. */
-    val hash: ByteString
-  ) {
-    fun matches(hostname: String): Boolean {
-      return when {
-        pattern.startsWith("**.") -> {
-          // With ** empty prefixes match so exclude the dot from regionMatches().
-          val suffixLength = pattern.length - 3
-          val prefixLength = hostname.length - suffixLength
-          hostname.regionMatches(hostname.length - suffixLength, pattern, 3, suffixLength) &&
-              (prefixLength == 0 || hostname[prefixLength - 1] == '.')
+            for (pin in pins) {
+                when (pin.hashAlgorithm) {
+                    "sha256/" -> {
+                        if (sha256 == null) sha256 = peerCertificate.toSha256ByteString()
+                        if (pin.hash == sha256) return // Success!
+                    }
+                    "sha1/" -> {
+                        if (sha1 == null) sha1 = peerCertificate.toSha1ByteString()
+                        if (pin.hash == sha1) return // Success!
+                    }
+                    else -> throw AssertionError("unsupported hashAlgorithm: ${pin.hashAlgorithm}")
+                }
+            }
         }
-        pattern.startsWith("*.") -> {
-          // With * there must be a prefix so include the dot in regionMatches().
-          val suffixLength = pattern.length - 1
-          val prefixLength = hostname.length - suffixLength
-          hostname.regionMatches(hostname.length - suffixLength, pattern, 1, suffixLength) &&
-              hostname.lastIndexOf('.', prefixLength - 1) == -1
+
+        // If we couldn't find a matching pin, format a nice exception.
+        val message = buildString {
+            append("Certificate pinning failure!")
+            append("\n  Peer certificate chain:")
+            for (element in peerCertificates) {
+                append("\n    ")
+                append(pin(element))
+                append(": ")
+                append(element.subjectDN.name)
+            }
+            append("\n  Pinned certificates for ")
+            append(hostname)
+            append(":")
+            for (pin in pins) {
+                append("\n    ")
+                append(pin)
+            }
         }
-        else -> hostname == pattern
-      }
+        throw SSLPeerUnverifiedException(message)
     }
 
-    override fun toString(): String = hashAlgorithm + hash.base64()
-  }
-
-  /** Builds a configured certificate pinner. */
-  class Builder {
-    private val pins = mutableListOf<Pin>()
+    @Deprecated(
+            "replaced with {@link #check(String, List)}.",
+            ReplaceWith("check(hostname, peerCertificates.toList())")
+    )
+    @Throws(SSLPeerUnverifiedException::class)
+    fun check(hostname: String, vararg peerCertificates: Certificate) {
+        check(hostname, peerCertificates.toList())
+    }
 
     /**
-     * Pins certificates for `pattern`.
-     *
-     * @param pattern lower-case host name or wildcard pattern such as `*.example.com`.
-     * @param pins SHA-256 or SHA-1 hashes. Each pin is a hash of a certificate's Subject Public Key
-     *     Info, base64-encoded and prefixed with either `sha256/` or `sha1/`.
+     * Returns list of matching certificates' pins for the hostname. Returns an empty list if the
+     * hostname does not have pinned certificates.
      */
-    fun add(pattern: String, vararg pins: String) = apply {
-      for (pin in pins) {
-        this.pins.add(newPin(pattern, pin))
-      }
-    }
-
-    fun build(): CertificatePinner = CertificatePinner(pins.toSet(), null)
-  }
-
-  companion object {
-    @JvmField
-    val DEFAULT = Builder().build()
-
-    /**
-     * Returns the SHA-256 of `certificate`'s public key.
-     *
-     * In OkHttp 3.1.2 and earlier, this returned a SHA-1 hash of the public key. Both types are
-     * supported, but SHA-256 is preferred.
-     */
-    @JvmStatic
-    fun pin(certificate: Certificate): String {
-      require(certificate is X509Certificate) { "Certificate pinning requires X509 certificates" }
-      return "sha256/${certificate.toSha256ByteString().base64()}"
-    }
-
-    internal fun X509Certificate.toSha1ByteString(): ByteString =
-        publicKey.encoded.toByteString().sha1()
-
-    internal fun X509Certificate.toSha256ByteString(): ByteString =
-        publicKey.encoded.toByteString().sha256()
-
-    internal fun newPin(pattern: String, pin: String): Pin {
-      require((pattern.startsWith("*.") && pattern.indexOf("*", 1) == -1) ||
-          (pattern.startsWith("**.") && pattern.indexOf("*", 2) == -1) ||
-          pattern.indexOf("*") == -1) {
-        "Unexpected pattern: $pattern"
-      }
-      val canonicalPattern =
-          pattern.toCanonicalHost() ?: throw IllegalArgumentException("Invalid pattern: $pattern")
-
-      return when {
-        pin.startsWith("sha1/") -> {
-          val hash = pin.substring("sha1/".length).decodeBase64()!!
-          Pin(canonicalPattern, "sha1/", hash)
+    internal fun findMatchingPins(hostname: String): List<Pin> {
+        var result: List<Pin> = emptyList()
+        for (pin in pins) {
+            if (pin.matches(hostname)) {
+                if (result.isEmpty()) result = mutableListOf()
+                (result as MutableList<Pin>).add(pin)
+            }
         }
-        pin.startsWith("sha256/") -> {
-          val hash = pin.substring("sha256/".length).decodeBase64()!!
-          Pin(canonicalPattern, "sha256/", hash)
-        }
-        else -> throw IllegalArgumentException("pins must start with 'sha256/' or 'sha1/': $pin")
-      }
+        return result
     }
-  }
+
+    /** Returns a certificate pinner that uses `certificateChainCleaner`. */
+    internal fun withCertificateChainCleaner(
+            certificateChainCleaner: CertificateChainCleaner?
+    ): CertificatePinner {
+        return if (this.certificateChainCleaner == certificateChainCleaner) {
+            this
+        } else {
+            CertificatePinner(pins, certificateChainCleaner)
+        }
+    }
+
+    override fun equals(other: Any?): Boolean {
+        return other is CertificatePinner &&
+                other.pins == pins &&
+                other.certificateChainCleaner == certificateChainCleaner
+    }
+
+    override fun hashCode(): Int {
+        var result = 37
+        result = 41 * result + pins.hashCode()
+        result = 41 * result + certificateChainCleaner.hashCode()
+        return result
+    }
+
+    internal data class Pin(
+            /** A hostname like `example.com` or a pattern like `*.example.com` (canonical form). */
+            private val pattern: String,
+            /** Either `sha1/` or `sha256/`. */
+            val hashAlgorithm: String,
+            /** The hash of the pinned certificate using [hashAlgorithm]. */
+            val hash: ByteString
+    ) {
+        fun matches(hostname: String): Boolean {
+            return when {
+                pattern.startsWith("**.") -> {
+                    // With ** empty prefixes match so exclude the dot from regionMatches().
+                    val suffixLength = pattern.length - 3
+                    val prefixLength = hostname.length - suffixLength
+                    hostname.regionMatches(hostname.length - suffixLength, pattern, 3, suffixLength) &&
+                            (prefixLength == 0 || hostname[prefixLength - 1] == '.')
+                }
+                pattern.startsWith("*.") -> {
+                    // With * there must be a prefix so include the dot in regionMatches().
+                    val suffixLength = pattern.length - 1
+                    val prefixLength = hostname.length - suffixLength
+                    hostname.regionMatches(hostname.length - suffixLength, pattern, 1, suffixLength) &&
+                            hostname.lastIndexOf('.', prefixLength - 1) == -1
+                }
+                else -> hostname == pattern
+            }
+        }
+
+        override fun toString(): String = hashAlgorithm + hash.base64()
+    }
+
+    /** Builds a configured certificate pinner. */
+    class Builder {
+        private val pins = mutableListOf<Pin>()
+
+        /**
+         * Pins certificates for `pattern`.
+         *
+         * @param pattern lower-case host name or wildcard pattern such as `*.example.com`.
+         * @param pins SHA-256 or SHA-1 hashes. Each pin is a hash of a certificate's Subject Public Key
+         *     Info, base64-encoded and prefixed with either `sha256/` or `sha1/`.
+         */
+        fun add(pattern: String, vararg pins: String) = apply {
+            for (pin in pins) {
+                this.pins.add(newPin(pattern, pin))
+            }
+        }
+
+        fun build(): CertificatePinner = CertificatePinner(pins.toSet(), null)
+    }
+
+    companion object {
+        @JvmField
+        val DEFAULT = Builder().build()
+
+        /**
+         * Returns the SHA-256 of `certificate`'s public key.
+         *
+         * In OkHttp 3.1.2 and earlier, this returned a SHA-1 hash of the public key. Both types are
+         * supported, but SHA-256 is preferred.
+         */
+        @JvmStatic
+        fun pin(certificate: Certificate): String {
+            require(certificate is X509Certificate) { "Certificate pinning requires X509 certificates" }
+            return "sha256/${certificate.toSha256ByteString().base64()}"
+        }
+
+        internal fun X509Certificate.toSha1ByteString(): ByteString =
+                publicKey.encoded.toByteString().sha1()
+
+        internal fun X509Certificate.toSha256ByteString(): ByteString =
+                publicKey.encoded.toByteString().sha256()
+
+        internal fun newPin(pattern: String, pin: String): Pin {
+            require((pattern.startsWith("*.") && pattern.indexOf("*", 1) == -1) ||
+                    (pattern.startsWith("**.") && pattern.indexOf("*", 2) == -1) ||
+                    pattern.indexOf("*") == -1) {
+                "Unexpected pattern: $pattern"
+            }
+            val canonicalPattern =
+                    pattern.toCanonicalHost() ?: throw IllegalArgumentException("Invalid pattern: $pattern")
+
+            return when {
+                pin.startsWith("sha1/") -> {
+                    val hash = pin.substring("sha1/".length).decodeBase64()!!
+                    Pin(canonicalPattern, "sha1/", hash)
+                }
+                pin.startsWith("sha256/") -> {
+                    val hash = pin.substring("sha256/".length).decodeBase64()!!
+                    Pin(canonicalPattern, "sha256/", hash)
+                }
+                else -> throw IllegalArgumentException("pins must start with 'sha256/' or 'sha1/': $pin")
+            }
+        }
+    }
 }

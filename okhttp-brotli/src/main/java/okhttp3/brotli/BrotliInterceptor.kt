@@ -31,17 +31,17 @@ import org.brotli.dec.BrotliInputStream
  */
 object BrotliInterceptor : Interceptor {
     override fun intercept(chain: Interceptor.Chain): Response =
-        if (chain.request().header("Accept-Encoding") == null) {
-            val request = chain.request().newBuilder()
-                .header("Accept-Encoding", "br,gzip")
-                .build()
+            if (chain.request().header("Accept-Encoding") == null) {
+                val request = chain.request().newBuilder()
+                        .header("Accept-Encoding", "br,gzip")
+                        .build()
 
-            val response = chain.proceed(request)
+                val response = chain.proceed(request)
 
-            uncompress(response)
-        } else {
-            chain.proceed(chain.request())
-        }
+                uncompress(response)
+            } else {
+                chain.proceed(chain.request())
+            }
 
     internal fun uncompress(response: Response): Response {
         val body = response.body ?: return response
@@ -56,9 +56,9 @@ object BrotliInterceptor : Interceptor {
         }
 
         return response.newBuilder()
-            .removeHeader("Content-Encoding")
-            .removeHeader("Content-Length")
-            .body(decompressedSource.asResponseBody(body.contentType(), -1))
-            .build()
+                .removeHeader("Content-Encoding")
+                .removeHeader("Content-Length")
+                .body(decompressedSource.asResponseBody(body.contentType(), -1))
+                .build()
     }
 }

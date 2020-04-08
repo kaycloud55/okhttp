@@ -37,15 +37,16 @@ import okio.Source
 import okio.Timeout
 import okio.buffer
 
-/** Serves requests from the cache and writes responses to the cache.
+/**
  *
  * 缓存拦截器-向request提供缓存数据，从response写入缓存
+ * 如果命中缓存则不会发起请求
  * */
 class CacheInterceptor(internal val cache: Cache?) : Interceptor {
 
     @Throws(IOException::class)
     override fun intercept(chain: Interceptor.Chain): Response {
-        val cacheCandidate = cache?.get(chain.request()) //前面传递下来的结果
+        val cacheCandidate = cache?.get(chain.request()) //直接通过cache去查，看有没有合适的缓存
 
         val now = System.currentTimeMillis()
 
@@ -55,33 +56,35 @@ class CacheInterceptor(internal val cache: Cache?) : Interceptor {
 
         cache?.trackResponse(strategy) // 追踪命中比例
 
+        //设备中有缓存，但是不合适
         if (cacheCandidate != null && cacheResponse == null) {
             // The cache candidate wasn't applicable. Close it.
             cacheCandidate.body?.closeQuietly()
         }
 
-        // If we're forbidden from using the network and the cache is insufficient, fail.
+        // 缓存策略是不使用网络，同时又没有合适的缓存，就会直接失败
         if (networkRequest == null && cacheResponse == null) {
             return Response.Builder()
-                .request(chain.request())
-                .protocol(Protocol.HTTP_1_1)
-                .code(HTTP_GATEWAY_TIMEOUT)
-                .message("Unsatisfiable Request (only-if-cached)")
-                .body(EMPTY_RESPONSE)
-                .sentRequestAtMillis(-1L)
-                .receivedResponseAtMillis(System.currentTimeMillis())
-                .build()
+                    .request(chain.request())
+                    .protocol(Protocol.HTTP_1_1)
+                    .code(HTTP_GATEWAY_TIMEOUT)
+                    .message("Unsatisfiable Request (only-if-cached)")
+                    .body(EMPTY_RESPONSE)
+                    .sentRequestAtMillis(-1L)
+                    .receivedResponseAtMillis(System.currentTimeMillis())
+                    .build()
         }
 
-        // If we don't need the network, we're done.
+        // 缓存策略是不适用网络，但是有合适的cacheResponse
         if (networkRequest == null) {
             return cacheResponse!!.newBuilder()
-                .cacheResponse(stripBody(cacheResponse))
-                .build()
+                    .cacheResponse(stripBody(cacheResponse))
+                    .build()
         }
-
+        //这里就是使用网络的情况了
         var networkResponse: Response? = null
         try {
+            //执行网络请求
             networkResponse = chain.proceed(networkRequest)
         } finally {
             // If we're crashing on I/O or otherwise, don't leak the cache body.
@@ -90,16 +93,17 @@ class CacheInterceptor(internal val cache: Cache?) : Interceptor {
             }
         }
 
-        // If we have a cache response too, then we're doing a conditional get.
+        // 针对有缓存，但是需要去服务端验证的情况，上述已经发送了验证的请求了
         if (cacheResponse != null) {
+            //并且服务端返回了缓存可用
             if (networkResponse?.code == HTTP_NOT_MODIFIED) {
                 val response = cacheResponse.newBuilder()
-                    .headers(combine(cacheResponse.headers, networkResponse.headers))
-                    .sentRequestAtMillis(networkResponse.sentRequestAtMillis)
-                    .receivedResponseAtMillis(networkResponse.receivedResponseAtMillis)
-                    .cacheResponse(stripBody(cacheResponse))
-                    .networkResponse(stripBody(networkResponse))
-                    .build()
+                        .headers(combine(cacheResponse.headers, networkResponse.headers))
+                        .sentRequestAtMillis(networkResponse.sentRequestAtMillis)
+                        .receivedResponseAtMillis(networkResponse.receivedResponseAtMillis)
+                        .cacheResponse(stripBody(cacheResponse))
+                        .networkResponse(stripBody(networkResponse))
+                        .build()
 
                 networkResponse.body!!.close()
 
@@ -112,15 +116,16 @@ class CacheInterceptor(internal val cache: Cache?) : Interceptor {
                 cacheResponse.body?.closeQuietly()
             }
         }
-
+        //本地没有缓存，就是普通的网络请求
         val response = networkResponse!!.newBuilder()
-            .cacheResponse(stripBody(cacheResponse))
-            .networkResponse(stripBody(networkResponse))
-            .build()
+                .cacheResponse(stripBody(cacheResponse))
+                .networkResponse(stripBody(networkResponse))
+                .build()
 
         if (cache != null) {
+            // 有响应体并且用户设置的缓存策略是可缓存的
             if (response.promisesBody() && CacheStrategy.isCacheable(response, networkRequest)) {
-                // Offer this request to the cache.
+                // 设置/更新缓存
                 val cacheRequest = cache.put(response)
                 return cacheWritingResponse(cacheRequest, response)
             }
@@ -187,7 +192,7 @@ class CacheInterceptor(internal val cache: Cache?) : Interceptor {
             @Throws(IOException::class)
             override fun close() {
                 if (!cacheRequestClosed &&
-                    !discard(ExchangeCodec.DISCARD_STREAM_TIMEOUT_MILLIS, MILLISECONDS)) {
+                        !discard(ExchangeCodec.DISCARD_STREAM_TIMEOUT_MILLIS, MILLISECONDS)) {
                     cacheRequestClosed = true
                     cacheRequest.abort()
                 }
@@ -198,8 +203,8 @@ class CacheInterceptor(internal val cache: Cache?) : Interceptor {
         val contentType = response.header("Content-Type")
         val contentLength = response.body.contentLength()
         return response.newBuilder()
-            .body(RealResponseBody(contentType, contentLength, cacheWritingSource.buffer()))
-            .build()
+                .body(RealResponseBody(contentType, contentLength, cacheWritingSource.buffer()))
+                .build()
     }
 
     companion object {
@@ -224,8 +229,8 @@ class CacheInterceptor(internal val cache: Cache?) : Interceptor {
                     continue
                 }
                 if (isContentSpecificHeader(fieldName) ||
-                    !isEndToEnd(fieldName) ||
-                    networkHeaders[fieldName] == null) {
+                        !isEndToEnd(fieldName) ||
+                        networkHeaders[fieldName] == null) {
                     result.addLenient(fieldName, value)
                 }
             }
@@ -246,13 +251,13 @@ class CacheInterceptor(internal val cache: Cache?) : Interceptor {
          */
         private fun isEndToEnd(fieldName: String): Boolean {
             return !"Connection".equals(fieldName, ignoreCase = true) &&
-                !"Keep-Alive".equals(fieldName, ignoreCase = true) &&
-                !"Proxy-Authenticate".equals(fieldName, ignoreCase = true) &&
-                !"Proxy-Authorization".equals(fieldName, ignoreCase = true) &&
-                !"TE".equals(fieldName, ignoreCase = true) &&
-                !"Trailers".equals(fieldName, ignoreCase = true) &&
-                !"Transfer-Encoding".equals(fieldName, ignoreCase = true) &&
-                !"Upgrade".equals(fieldName, ignoreCase = true)
+                    !"Keep-Alive".equals(fieldName, ignoreCase = true) &&
+                    !"Proxy-Authenticate".equals(fieldName, ignoreCase = true) &&
+                    !"Proxy-Authorization".equals(fieldName, ignoreCase = true) &&
+                    !"TE".equals(fieldName, ignoreCase = true) &&
+                    !"Trailers".equals(fieldName, ignoreCase = true) &&
+                    !"Transfer-Encoding".equals(fieldName, ignoreCase = true) &&
+                    !"Upgrade".equals(fieldName, ignoreCase = true)
         }
 
         /**
@@ -261,8 +266,8 @@ class CacheInterceptor(internal val cache: Cache?) : Interceptor {
          */
         private fun isContentSpecificHeader(fieldName: String): Boolean {
             return "Content-Length".equals(fieldName, ignoreCase = true) ||
-                "Content-Encoding".equals(fieldName, ignoreCase = true) ||
-                "Content-Type".equals(fieldName, ignoreCase = true)
+                    "Content-Encoding".equals(fieldName, ignoreCase = true) ||
+                    "Content-Type".equals(fieldName, ignoreCase = true)
         }
     }
 }

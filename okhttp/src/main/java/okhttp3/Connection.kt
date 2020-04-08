@@ -54,11 +54,7 @@ import java.net.Socket
  * 每个连接都可以承载大量的stream，具体的数量取决于底层的协议版本。对于HTTP/1.x，每个连接对应0个或1个stream，对于HTTP/2，
  * 每个连接可以承载大量的流，这取决于`SETTINGS_MAX_CONCURRENT_STREAMS`的配置。
  * 没有承载流的connection视作空闲的，可以被复用。
- * Each connection can carry a varying number of streams, depending on the underlying protocol being
- * used. HTTP/1.x connections can carry either zero or one streams. HTTP/2 connections can carry any
- * number of streams, dynamically configured with `SETTINGS_MAX_CONCURRENT_STREAMS`. A connection
- * currently carrying zero streams is an idle stream. We keep it alive because reusing an existing
- * connection is typically faster than establishing a new one.
+ * 重用一个连接的成本比新建低很多，所以链接一般会被keep alive.
  *
  * When a single logical call requires multiple streams due to redirects or authorization
  * challenges, we prefer to use the same physical connection for all streams in the sequence. There
@@ -79,22 +75,20 @@ interface Connection {
     fun route(): Route
 
     /**
-     * Returns the socket that this connection is using. Returns an
-     * [SSL socket][javax.net.ssl.SSLSocket] if this connection is HTTPS. If this is an HTTP/2
-     * connection the socket may be shared by multiple concurrent calls.
+     * 当前链接使用的socket.
+     * 如果是HTTPS链接，返回[SSL socket][javax.net.ssl.SSLSocket] .
+     * 如果是HTTP/2连接，这个socket将会被多个并发的call公用。
      */
     fun socket(): Socket
 
     /**
-     * Returns the TLS handshake used to establish this connection, or null if the connection is not
-     * HTTPS.
+     * TLS握手快照，如果不是HTTPS连接的话返回null。
      */
     fun handshake(): Handshake?
 
     /**
-     * Returns the protocol negotiated by this connection, or [Protocol.HTTP_1_1] if no protocol
-     * has been negotiated. This method returns [Protocol.HTTP_1_1] even if the remote peer is using
-     * [Protocol.HTTP_1_0].
+     * 当前链接协商出来的协议, 默认是[Protocol.HTTP_1_1] .
+     * 即使服务端使用的是 [Protocol.HTTP_1_0] ，这个方法也会返回[Protocol.HTTP_1_0].
      */
     fun protocol(): Protocol
 }
