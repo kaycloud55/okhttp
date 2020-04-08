@@ -79,7 +79,7 @@ class ExchangeFinder(
                     connectionRetryEnabled = client.retryOnConnectionFailure,
                     doExtensiveHealthChecks = chain.request.method != "GET"
             )
-            return resultConnection.newCodec(client, chain)
+            return resultConnection.newCodec(client, chain) //构造一个IO流的编码器
         } catch (e: RouteException) {
             trackFailure(e.lastConnectException)
             throw e
@@ -110,7 +110,7 @@ class ExchangeFinder(
                     connectionRetryEnabled = connectionRetryEnabled
             )
 
-            // Confirm that the connection is good. If it isn't, take it out of the pool and start again.
+            // 确认当前连接是不是可用的，如果不是就把它从池中剔除，然后继续寻找。
             if (!candidate.isHealthy(doExtensiveHealthChecks)) {
                 candidate.noNewExchanges()
                 continue
@@ -131,29 +131,30 @@ class ExchangeFinder(
             pingIntervalMillis: Int,
             connectionRetryEnabled: Boolean
     ): RealConnection {
-        var foundPooledConnection = false
-        var result: RealConnection? = null
-        var selectedRoute: Route? = null
-        var releasedConnection: RealConnection?
+        var foundPooledConnection = false //在连接池中是不是找到了可用的连接
+        var result: RealConnection? = null //找到的或者是新创建的连接
+        var selectedRoute: Route? = null //选择的路由策略
+        var releasedConnection: RealConnection? //表示这次寻找过程中发现的不可用并被释放了的连接
         val toClose: Socket?
         synchronized(connectionPool) {
             if (call.isCanceled()) throw IOException("Canceled")
-
-            releasedConnection = call.connection
+            // 1
+            releasedConnection = call.connection //直接尝试复用
             toClose = if (call.connection != null &&
                     //不允许在当前连接创建新的exchange或者是和当前url不匹配
                     (call.connection!!.noNewExchanges || !call.connection!!.supportsUrl(address.url))) {
-                call.releaseConnectionNoEvents()
+                call.releaseConnectionNoEvents() //会释放这个连接，releasedConnection会跟着变成null
             } else {
                 null
             }
-
+            //上面如果不符合条件的话，call.connection其实已经被release了
+            // 所以能走进去这个条件，说明现在连接可用，releasedConnection = null这个就是正常的
             if (call.connection != null) {
-                // 已经有了一个分配好的connection，并且是可用的
+                // 经过上面的判断之后，发现call中自带的connection是可用的
                 result = call.connection
                 releasedConnection = null
             }
-
+            //经过上面的步骤之后，如果result还为null，说明call.connection不可用被释放了，需要从池中找一个
             if (result == null) {
                 // The connection hasn't had any problems for this call.
                 refusedStreamCount = 0
@@ -162,28 +163,31 @@ class ExchangeFinder(
 
                 // request本身自带的connection不可用，尝试从连接池中寻找一个
                 if (connectionPool.callAcquirePooledConnection(address, call, null, false)) {
-                    foundPooledConnection = true
+                    foundPooledConnection = true //成功找到一个
                     result = call.connection
-                } else if (nextRouteToTry != null) {
-                    selectedRoute = nextRouteToTry
+                } else if (nextRouteToTry != null) { //尝试下一个route
+                    selectedRoute = nextRouteToTry //下一次尝试的路由
                     nextRouteToTry = null
                 }
             }
         }
         toClose?.closeQuietly()
-
+        //call.connection == null 或者是 call.connection不为空，但是不可用，就会被释放
+        //能走进去这个条件说明call.connection是不可用的，并且被释放了
         if (releasedConnection != null) {
             eventListener.connectionReleased(call, releasedConnection!!)
         }
+        //成功的在池中找到了一个可用连接
         if (foundPooledConnection) {
             eventListener.connectionAcquired(call, result!!)
         }
         if (result != null) {
-            // If we found an already-allocated or pooled connection, we're done.
+            // 成功找到了一个已经分配好的连接或者是从连接池中取出了一个可用的连接，find成功。
             return result!!
         }
 
         // If we need a route selection, make one. This is a blocking operation.
+        // 路由选择
         var newRouteSelection = false
         if (selectedRoute == null && (routeSelection == null || !routeSelection!!.hasNext())) {
             var localRouteSelector = routeSelector
@@ -200,34 +204,35 @@ class ExchangeFinder(
             if (call.isCanceled()) throw IOException("Canceled")
 
             if (newRouteSelection) {
-                // Now that we have a set of IP addresses, make another attempt at getting a connection from
-                // the pool. This could match due to connection coalescing.
+                // 现在我们有了一系列的IP地址，所以就依次去尝试。由于会有连接合并，所以依次尝试是有用的。
                 routes = routeSelection!!.routes
+                // 切换路由继续到连接池中寻找
                 if (connectionPool.callAcquirePooledConnection(address, call, routes, false)) {
                     foundPooledConnection = true
                     result = call.connection
                 }
             }
-
+            //继续切换寻找
             if (!foundPooledConnection) {
                 if (selectedRoute == null) {
                     selectedRoute = routeSelection!!.next()
                 }
 
-                // Create a connection and assign it to this allocation immediately. This makes it possible
-                // for an asynchronous cancel() to interrupt the handshake we're about to do.
-                result = RealConnection(connectionPool, selectedRoute!!)
+                // 创建一个新的连接，并且把它分配给这次查找的结果。
+                // 异步调用的`cancel()`可能会打断后续的握手操作。
+                result = RealConnection(connectionPool, selectedRoute!!) // 2
                 connectingConnection = result
             }
         }
 
-        // If we found a pooled connection on the 2nd time around, we're done.
+        // 在第二个回环的时候找到了合适的connection, we're done.
+        // 如果能走进去这里，说明上面的2处操作不会被执行
         if (foundPooledConnection) {
             eventListener.connectionAcquired(call, result!!)
             return result!!
         }
 
-        // Do TCP + TLS handshakes. This is a blocking operation.
+        // 执行TCP和Tls握手操作，这是个阻塞的过程
         result!!.connect(
                 connectTimeout,
                 readTimeout,
@@ -242,18 +247,18 @@ class ExchangeFinder(
         var socket: Socket? = null
         synchronized(connectionPool) {
             connectingConnection = null
-            // Last attempt at connection coalescing, which only occurs if we attempted multiple
-            // concurrent connections to the same host.
+            // 最后尝试一个合并连接，也就是再次尝试当前连接池中有没有新出现可用连接
+            // 只有在对一个host并发了多个connection的时候，才能找到。
             if (connectionPool.callAcquirePooledConnection(address, call, routes, true)) {
-                // We lost the race! Close the connection we created and return the pooled connection.
+                // 意思是说我们跑输了，已经有新的可用的连接回到连接池中，我们新创建中得这个连接就要丢掉，使用池中的连接
                 result!!.noNewExchanges = true
                 socket = result!!.socket()
                 result = call.connection
 
-                // It's possible for us to obtain a coalesced connection that is immediately unhealthy. In
-                // that case we will retry the route we just successfully connected with.
+                // 有可能这个时候获取的池中的connection还是unhealthy的，就需要根据刚才成功的route再次尝试
                 nextRouteToTry = selectedRoute
             } else {
+                //新建的连接放入连接池
                 connectionPool.put(result!!)
                 call.acquireConnectionNoEvents(result!!)
             }

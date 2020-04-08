@@ -265,11 +265,11 @@ class RealCall(
     }
 
     fun acquireConnectionNoEvents(connection: RealConnection) {
-        connectionPool.assertThreadHoldsLock()
+        connectionPool.assertThreadHoldsLock() //必须先获得锁
 
-        check(this.connection == null)
+        check(this.connection == null) //连接不为null
         this.connection = connection
-        connection.calls.add(CallReference(this, callStackTrace))
+        connection.calls.add(CallReference(this, callStackTrace)) //加入到当前的连接的call中
     }
 
     /**
@@ -374,8 +374,8 @@ class RealCall(
         check(index != -1)
 
         val released = this.connection
-        released!!.calls.removeAt(index)
-        this.connection = null
+        released!!.calls.removeAt(index) //从连接的call列表中移除当前请求
+        this.connection = null //GC会回收
 
         if (released.calls.isEmpty()) {
             released.idleAtNs = System.nanoTime()
@@ -546,9 +546,8 @@ class RealCall(
     internal class CallReference(
             referent: RealCall,
             /**
-             * Captures the stack trace at the time the Call is executed or enqueued. This is helpful for
-             * identifying the origin of connection leaks.
+             * 在call被execute或者是enqueue时来跟踪调用栈。 主要用来监控 connection leak。
              */
             val callStackTrace: Any?
-    ) : WeakReference<RealCall>(referent)
+    ) : WeakReference<RealCall>(referent) //弱引用
 }

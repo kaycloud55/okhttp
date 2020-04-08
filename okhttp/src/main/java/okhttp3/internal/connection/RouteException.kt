@@ -18,9 +18,7 @@ package okhttp3.internal.connection
 import java.io.IOException
 
 /**
- * An exception thrown to indicate a problem connecting via a single Route. Multiple attempts may
- * have been made with alternative protocols, none of which were successful.
- * 在路由的时候失败了
+ * 通过某个路径进行连接的时候失败了. 可能已经针对多个协议进行了多次尝试，但是都没有成功
  */
 class RouteException internal constructor(val firstConnectException: IOException) :
         RuntimeException(firstConnectException) {

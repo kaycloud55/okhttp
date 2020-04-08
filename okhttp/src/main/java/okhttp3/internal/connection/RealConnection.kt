@@ -94,7 +94,7 @@ class RealConnection(
     // The fields below track connection state and are guarded by connectionPool.
 
     /**
-     * If true, no new exchanges can be created on this connection. Once true this is always true.
+     * 是否不再接受新的exchange。一旦被设置了true就永远是true了，不能逆转。
      * Guarded by [connectionPool].
      */
     var noNewExchanges = false
@@ -127,8 +127,8 @@ class RealConnection(
     internal var idleAtNs = Long.MAX_VALUE
 
     /**
-     * Returns true if this is an HTTP/2 connection. Such connections can be used in multiple HTTP
-     * requests simultaneously.
+     * 如果是HTTP/2连接就返回true——也就是表明是不是多路复用的。
+     * 这类连接可以被多个请求同时使用。
      */
     val isMultiplexed: Boolean
         get() = http2Connection != null
@@ -510,7 +510,10 @@ class RealConnection(
     }
 
     /**
-     * Returns true if this connection can carry a stream allocation to `address`. If non-null
+     * Returns true if this connection can carry a stream allocation to `address`.
+     *
+     * 如果这个连接对于一个“address”能承载多个流，就返回true。
+     * If non-null
      * `route` is the resolved route for a connection.
      */
     internal fun isEligible(address: Address, routes: List<Route>?): Boolean {
@@ -622,7 +625,7 @@ class RealConnection(
 
     override fun socket(): Socket = socket!!
 
-    /** Returns true if this connection is ready to host new streams. */
+    /** 如果连接已经准备好了发送流就返回true */
     fun isHealthy(doExtensiveChecks: Boolean): Boolean {
         val nowNs = System.nanoTime()
 

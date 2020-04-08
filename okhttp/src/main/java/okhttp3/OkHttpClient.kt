@@ -240,7 +240,7 @@ open class OkHttpClient internal constructor(
     @get:JvmName("pingIntervalMillis")
     val pingIntervalMillis: Int = builder.pingInterval
 
-    val routeDatabase: RouteDatabase = builder.routeDatabase ?: RouteDatabase()
+    val routeDatabase: RouteDatabase = builder.routeDatabase ?: RouteDatabase() //当前已经建立连接的地址
 
     constructor() : this(Builder())
 

@@ -43,11 +43,14 @@ class RealConnectionPool(
     private val keepAliveDurationNs: Long = timeUnit.toNanos(keepAliveDuration)
 
     private val cleanupQueue: TaskQueue = taskRunner.newQueue()
+    /**
+     * connection清理任务
+     */
     private val cleanupTask = object : Task("$okHttpName ConnectionPool") {
         override fun runOnce() = cleanup(System.nanoTime())
     }
 
-    private val connections = ArrayDeque<RealConnection>()
+    private val connections = ArrayDeque<RealConnection>() //双端队列
 
     init {
         // Put a floor on the keep alive duration, otherwise cleanup will spin loop.
@@ -79,11 +82,11 @@ class RealConnectionPool(
             routes: List<Route>?,
             requireMultiplexed: Boolean
     ): Boolean {
-        this.assertThreadHoldsLock()
+        this.assertThreadHoldsLock() //当前线程必须获得锁
 
         for (connection in connections) {
-            if (requireMultiplexed && !connection.isMultiplexed) continue
-            if (!connection.isEligible(address, routes)) continue
+            if (requireMultiplexed && !connection.isMultiplexed) continue //要求是多路复用的，但是当前connection不是
+            if (!connection.isEligible(address, routes)) continue //不能承载多个流
             call.acquireConnectionNoEvents(connection)
             return true
         }
@@ -94,12 +97,13 @@ class RealConnectionPool(
         this.assertThreadHoldsLock()
 
         connections.add(connection)
-        cleanupQueue.schedule(cleanupTask)
+        cleanupQueue.schedule(cleanupTask) //每次连接池中放入新的task的时候，都会开始schedule清理任务，这是个循环执行的任务
     }
 
     /**
-     * Notify this pool that [connection] has become idle. Returns true if the connection has
-     * been removed from the pool and should be closed.
+     * 通知线程池某个[connection]已经变成空闲的了。
+     *
+     * 如果连接从连接池中被成功移除，返回true。
      */
     fun connectionBecameIdle(connection: RealConnection): Boolean {
         this.assertThreadHoldsLock()
@@ -135,11 +139,10 @@ class RealConnectionPool(
     }
 
     /**
-     * Performs maintenance on this pool, evicting the connection that has been idle the longest if
-     * either it has exceeded the keep alive limit or the idle connections limit.
      *
-     * Returns the duration in nanoseconds to sleep until the next scheduled call to this method.
-     * Returns -1 if no further cleanups are required.
+     * 负责维护连接池的任务，剔除那些超过了keep-alive时间和idle connection limit限制的最早变成空闲的连接。
+     *
+     * 返回值是下次清理的间隔时间。
      */
     fun cleanup(now: Long): Long {
         var inUseConnectionCount = 0
@@ -147,7 +150,7 @@ class RealConnectionPool(
         var longestIdleConnection: RealConnection? = null
         var longestIdleDurationNs = Long.MIN_VALUE
 
-        // Find either a connection to evict, or the time that the next eviction is due.
+        // 找到要提出的connection或者是下次执行剔除的时间
         synchronized(this) {
             for (connection in connections) {
                 // If the connection is in use, keep searching.

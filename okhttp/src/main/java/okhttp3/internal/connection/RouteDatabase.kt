@@ -24,18 +24,21 @@ import okhttp3.Route
  * preferred.
  */
 class RouteDatabase {
-  private val failedRoutes = mutableSetOf<Route>()
+    private val failedRoutes = mutableSetOf<Route>()
 
-  /** Records a failure connecting to [failedRoute]. */
-  @Synchronized fun failed(failedRoute: Route) {
-    failedRoutes.add(failedRoute)
-  }
+    /** Records a failure connecting to [failedRoute]. */
+    @Synchronized
+    fun failed(failedRoute: Route) {
+        failedRoutes.add(failedRoute)
+    }
 
-  /** Records success connecting to [route]. */
-  @Synchronized fun connected(route: Route) {
-    failedRoutes.remove(route)
-  }
+    /** Records success connecting to [route]. */
+    @Synchronized
+    fun connected(route: Route) {
+        failedRoutes.remove(route)
+    }
 
-  /** Returns true if [route] has failed recently and should be avoided. */
-  @Synchronized fun shouldPostpone(route: Route): Boolean = route in failedRoutes
+    /** Returns true if [route] has failed recently and should be avoided. */
+    @Synchronized
+    fun shouldPostpone(route: Route): Boolean = route in failedRoutes
 }
