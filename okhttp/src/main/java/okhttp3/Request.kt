@@ -22,14 +22,14 @@ import okhttp3.internal.http.HttpMethod
 import okhttp3.internal.toImmutableMap
 
 /**
- * HTTP请求的抽象。如果它的这[body]请求体是空的话或者它自身是不可变的话，那它的实例也是不可变的。
+ * HTTP请求的描述抽象。如果它的[body]请求体是空的话或者它自身是不可变的话，那它的实例也是不可变的。
  */
 class Request internal constructor(
         @get:JvmName("url") val url: HttpUrl,
         @get:JvmName("method") val method: String,
         @get:JvmName("headers") val headers: Headers,
         @get:JvmName("body") val body: RequestBody?,
-        internal val tags: Map<Class<*>, Any>
+        internal val tags: Map<Class<*>, Any> //标识一个请求？
 ) {
 
     private var lazyCacheControl: CacheControl? = null
@@ -42,28 +42,20 @@ class Request internal constructor(
     fun headers(name: String): List<String> = headers.values(name)
 
     /**
-     * Returns the tag attached with `Object.class` as a key, or null if no tag is attached with
-     * that key.
+     * 注意：tag的key是Object.class，也就是class类
      *
-     * Prior to OkHttp 3.11, this method never returned null if no tag was attached. Instead it
-     * returned either this request, or the request upon which this request was derived with
-     * [newBuilder].
+     * 在Okhttp3中，如果没有tag它会返回null。但是在OKHttp4.x中，如果没有指定tag的话，它会默认使用这个request本身或者是newBuilder中关联的request作为key。
+     *
      */
     fun tag(): Any? = tag(Any::class.java)
 
-    /**
-     * Returns the tag attached with [type] as a key, or null if no tag is attached with that
-     * key.
-     */
     fun <T> tag(type: Class<out T>): T? = type.cast(tags[type])
 
     fun newBuilder(): Builder = Builder(this)
 
     /**
-     * Returns the cache control directives for this response. This is never null, even if this
-     * response contains no `Cache-Control` header.
+     * 即使响应中没有"cache-control"这个header，这个方法也不会返回null。
      */
-    @get:JvmName("cacheControl")
     val cacheControl: CacheControl
         get() {
             var result = lazyCacheControl
@@ -73,41 +65,6 @@ class Request internal constructor(
             }
             return result
         }
-
-    @JvmName("-deprecated_url")
-    @Deprecated(
-            message = "moved to val",
-            replaceWith = ReplaceWith(expression = "url"),
-            level = DeprecationLevel.ERROR)
-    fun url(): HttpUrl = url
-
-    @JvmName("-deprecated_method")
-    @Deprecated(
-            message = "moved to val",
-            replaceWith = ReplaceWith(expression = "method"),
-            level = DeprecationLevel.ERROR)
-    fun method(): String = method
-
-    @JvmName("-deprecated_headers")
-    @Deprecated(
-            message = "moved to val",
-            replaceWith = ReplaceWith(expression = "headers"),
-            level = DeprecationLevel.ERROR)
-    fun headers(): Headers = headers
-
-    @JvmName("-deprecated_body")
-    @Deprecated(
-            message = "moved to val",
-            replaceWith = ReplaceWith(expression = "body"),
-            level = DeprecationLevel.ERROR)
-    fun body(): RequestBody? = body
-
-    @JvmName("-deprecated_cacheControl")
-    @Deprecated(
-            message = "moved to val",
-            replaceWith = ReplaceWith(expression = "cacheControl"),
-            level = DeprecationLevel.ERROR)
-    fun cacheControl(): CacheControl = cacheControl
 
     override fun toString() = buildString {
         append("Request{method=")

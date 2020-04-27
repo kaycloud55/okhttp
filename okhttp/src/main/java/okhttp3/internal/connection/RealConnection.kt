@@ -72,7 +72,7 @@ import okio.source
 
 class RealConnection(
         val connectionPool: RealConnectionPool,
-        private val route: Route
+        private val route: Route //connection就是对route的封装
 ) : Http2Connection.Listener(), Connection {
 
     // The fields below are initialized by connect() and never reassigned.
@@ -510,9 +510,10 @@ class RealConnection(
     }
 
     /**
+     * 也就是判断host是不是一致
+     *
      * Returns true if this connection can carry a stream allocation to `address`.
      *
-     * 如果这个连接对于一个“address”能承载多个流，就返回true。
      * If non-null
      * `route` is the resolved route for a connection.
      */
@@ -520,10 +521,10 @@ class RealConnection(
         // If this connection is not accepting new exchanges, we're done.
         if (calls.size >= allocationLimit || noNewExchanges) return false
 
-        // If the non-host fields of the address don't overlap, we're done.
+        // 连接复用的核心就是看address是不是匹配.
         if (!this.route.address.equalsNonHost(address)) return false
 
-        // If the host exactly matches, we're done: this connection can carry the address.
+        // 除了上面的address要一致，并且这个route的address的主机和address的主机要一致
         if (address.url.host == this.route().address.url.host) {
             return true // This connection is a perfect match.
         }
@@ -554,8 +555,10 @@ class RealConnection(
     }
 
     /**
-     * Returns true if this connection's route has the same address as any of [candidates]. This
-     * requires us to have a DNS address for both hosts, which only happens after route planning. We
+     * Returns true if this connection's route has the same address as any of [candidates]
+     *
+     *
+     * This requires us to have a DNS address for both hosts, which only happens after route planning. We
      * can't coalesce connections that use a proxy, since proxies don't tell us the origin server's IP
      * address.
      */
@@ -587,8 +590,8 @@ class RealConnection(
     @Throws(SocketException::class)
     internal fun newCodec(client: OkHttpClient, chain: RealInterceptorChain): ExchangeCodec {
         val socket = this.socket!!
-        val source = this.source!!
-        val sink = this.sink!!
+        val source = this.source!! //request
+        val sink = this.sink!! //response
         val http2Connection = this.http2Connection
 
         return if (http2Connection != null) {

@@ -16,7 +16,8 @@
 package okhttp3.internal.concurrent
 
 /**
- * A unit of work that can be executed one or more times.
+ *
+ * 可以被执行一次或多次的一个任务单元。
  *
  * Recurrence
  * ----------
@@ -56,7 +57,7 @@ abstract class Task(
     /** Undefined unless this is in [TaskQueue.futureTasks]. */
     internal var nextExecuteNanoTime = -1L
 
-    /** Returns the delay in nanoseconds until the next execution, or -1L to not reschedule. */
+    /** 当前时间到下次执行时间的间隔，如果不能被再次执行则返回-1*/
     abstract fun runOnce(): Long
 
     internal fun initQueue(queue: TaskQueue) {

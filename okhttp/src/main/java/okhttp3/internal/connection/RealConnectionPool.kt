@@ -68,13 +68,12 @@ class RealConnectionPool(
     }
 
     /**
-     * 尝试获取一个针对[call]的[address]可循环使用的连接。
+     * 尝试获取一个针对[call]的[address]可复用的连接。
      *
      * 获取成功会返回true。
      *
-     * If [routes] is non-null these are the resolved routes (ie. IP addresses) for the connection.
-     * This is used to coalesce related domains to the same HTTP/2 connection, such as `square.com`
-     * and `square.ca`.
+     * 如果[routes]参数不为空的话，则它们表示的是connection的已解析路由。
+     * 这用于将相关的请求域名合并到同一个HTTP/2连接，例如"square.com"和"square.ca"。
      */
     fun callAcquirePooledConnection(
             address: Address,
@@ -86,8 +85,8 @@ class RealConnectionPool(
 
         for (connection in connections) {
             if (requireMultiplexed && !connection.isMultiplexed) continue //要求是多路复用的，但是当前connection不是
-            if (!connection.isEligible(address, routes)) continue //不能承载多个流
-            call.acquireConnectionNoEvents(connection)
+            if (!connection.isEligible(address, routes)) continue //connection的host跟address是不是一致的
+            call.acquireConnectionNoEvents(connection) //这个connection就是我们要找的
             return true
         }
         return false
@@ -101,9 +100,7 @@ class RealConnectionPool(
     }
 
     /**
-     * 通知线程池某个[connection]已经变成空闲的了。
-     *
-     * 如果连接从连接池中被成功移除，返回true。
+     * 判断某个connection是否空闲
      */
     fun connectionBecameIdle(connection: RealConnection): Boolean {
         this.assertThreadHoldsLock()

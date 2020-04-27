@@ -18,10 +18,11 @@ package okhttp3.internal.connection
 import okhttp3.Route
 
 /**
- * A blacklist of failed routes to avoid when creating a new connection to a target address. This is
- * used so that OkHttp can learn from its mistakes: if there was a failure attempting to connect to
- * a specific IP address or proxy server, that failure is remembered and alternate routes are
- * preferred.
+ *
+ * 建立新的connection时要跳过的已经失败过的routes黑名单。
+ *
+ * 这属于OKHttp的优化策略，如果有一个新的route的host是包含在这个黑名单某个route的，那么就可以直接跳过。
+ *
  */
 class RouteDatabase {
     private val failedRoutes = mutableSetOf<Route>()
@@ -38,7 +39,7 @@ class RouteDatabase {
         failedRoutes.remove(route)
     }
 
-    /** Returns true if [route] has failed recently and should be avoided. */
+    /** 某个route最近是否失败过，要跳过这个route */
     @Synchronized
     fun shouldPostpone(route: Route): Boolean = route in failedRoutes
 }

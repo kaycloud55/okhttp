@@ -25,9 +25,8 @@ import okhttp3.internal.indexOf
 import okhttp3.internal.intersect
 
 /**
- * Specifies configuration for the socket connection that HTTP traffic travels through. For `https:`
- * URLs, this includes the TLS version and cipher suites to use when negotiating a secure
- * connection.
+ *
+ * 直译为"连接规格"，它声明了socket连接和传输过程中的一些配置；比如，对于"https" URL,它包含了协商建立连接的时候使用的TLS的版本和密码套件
  *
  * The TLS versions configured in a connection spec are only be used if they are also enabled in the
  * SSL socket. For example, if an SSL socket does not have TLS 1.3 enabled, it will not be used even
@@ -44,10 +43,10 @@ import okhttp3.internal.intersect
  * [tls_history]: https://square.github.io/okhttp/tls_configuration_history/
  */
 class ConnectionSpec internal constructor(
-    @get:JvmName("isTls") val isTls: Boolean,
-    @get:JvmName("supportsTlsExtensions") val supportsTlsExtensions: Boolean,
-    private val cipherSuitesAsString: Array<String>?,
-    private val tlsVersionsAsString: Array<String>?
+        @get:JvmName("isTls") val isTls: Boolean, //是否是https连接
+        @get:JvmName("supportsTlsExtensions") val supportsTlsExtensions: Boolean,
+        private val cipherSuitesAsString: Array<String>?,
+        private val tlsVersionsAsString: Array<String>?
 ) {
 
     /**
@@ -60,13 +59,6 @@ class ConnectionSpec internal constructor(
             return cipherSuitesAsString?.map { CipherSuite.forJavaName(it) }?.toList()
         }
 
-    @JvmName("-deprecated_cipherSuites")
-    @Deprecated(
-        message = "moved to val",
-        replaceWith = ReplaceWith(expression = "cipherSuites"),
-        level = DeprecationLevel.ERROR)
-    fun cipherSuites(): List<CipherSuite>? = cipherSuites
-
     /**
      * Returns the TLS versions to use when negotiating a connection. Returns null if all of the SSL
      * socket's enabled TLS versions should be used.
@@ -76,20 +68,6 @@ class ConnectionSpec internal constructor(
         get() {
             return tlsVersionsAsString?.map { TlsVersion.forJavaName(it) }?.toList()
         }
-
-    @JvmName("-deprecated_tlsVersions")
-    @Deprecated(
-        message = "moved to val",
-        replaceWith = ReplaceWith(expression = "tlsVersions"),
-        level = DeprecationLevel.ERROR)
-    fun tlsVersions(): List<TlsVersion>? = tlsVersions
-
-    @JvmName("-deprecated_supportsTlsExtensions")
-    @Deprecated(
-        message = "moved to val",
-        replaceWith = ReplaceWith(expression = "supportsTlsExtensions"),
-        level = DeprecationLevel.ERROR)
-    fun supportsTlsExtensions(): Boolean = supportsTlsExtensions
 
     /** Applies this spec to [sslSocket]. */
     internal fun apply(sslSocket: SSLSocket, isFallback: Boolean) {
@@ -124,16 +102,16 @@ class ConnectionSpec internal constructor(
         // cipher is added to signal that a protocol fallback has taken place.
         val supportedCipherSuites = sslSocket.supportedCipherSuites
         val indexOfFallbackScsv = supportedCipherSuites.indexOf(
-            "TLS_FALLBACK_SCSV", CipherSuite.ORDER_BY_NAME)
+                "TLS_FALLBACK_SCSV", CipherSuite.ORDER_BY_NAME)
         if (isFallback && indexOfFallbackScsv != -1) {
             cipherSuitesIntersection = cipherSuitesIntersection.concat(
-                supportedCipherSuites[indexOfFallbackScsv])
+                    supportedCipherSuites[indexOfFallbackScsv])
         }
 
         return Builder(this)
-            .cipherSuites(*cipherSuitesIntersection)
-            .tlsVersions(*tlsVersionsIntersection)
-            .build()
+                .cipherSuites(*cipherSuitesIntersection)
+                .tlsVersions(*tlsVersionsIntersection)
+                .build()
     }
 
     /**
@@ -153,13 +131,13 @@ class ConnectionSpec internal constructor(
         }
 
         if (tlsVersionsAsString != null &&
-            !tlsVersionsAsString.hasIntersection(socket.enabledProtocols, naturalOrder())) {
+                !tlsVersionsAsString.hasIntersection(socket.enabledProtocols, naturalOrder())) {
             return false
         }
 
         if (cipherSuitesAsString != null &&
-            !cipherSuitesAsString.hasIntersection(
-                socket.enabledCipherSuites, CipherSuite.ORDER_BY_NAME)) {
+                !cipherSuitesAsString.hasIntersection(
+                        socket.enabledCipherSuites, CipherSuite.ORDER_BY_NAME)) {
             return false
         }
 
@@ -195,9 +173,9 @@ class ConnectionSpec internal constructor(
         if (!isTls) return "ConnectionSpec()"
 
         return ("ConnectionSpec(" +
-            "cipherSuites=${Objects.toString(cipherSuites, "[all enabled]")}, " +
-            "tlsVersions=${Objects.toString(tlsVersions, "[all enabled]")}, " +
-            "supportsTlsExtensions=$supportsTlsExtensions)")
+                "cipherSuites=${Objects.toString(cipherSuites, "[all enabled]")}, " +
+                "tlsVersions=${Objects.toString(tlsVersions, "[all enabled]")}, " +
+                "supportsTlsExtensions=$supportsTlsExtensions)")
     }
 
     class Builder {
@@ -255,18 +233,18 @@ class ConnectionSpec internal constructor(
         }
 
         @Deprecated("since OkHttp 3.13 all TLS-connections are expected to support TLS extensions.\n" +
-            "In a future release setting this to true will be unnecessary and setting it to false\n" +
-            "will have no effect.")
+                "In a future release setting this to true will be unnecessary and setting it to false\n" +
+                "will have no effect.")
         fun supportsTlsExtensions(supportsTlsExtensions: Boolean) = apply {
             require(tls) { "no TLS extensions for cleartext connections" }
             this.supportsTlsExtensions = supportsTlsExtensions
         }
 
         fun build(): ConnectionSpec = ConnectionSpec(
-            tls,
-            supportsTlsExtensions,
-            cipherSuites,
-            tlsVersions
+                tls,
+                supportsTlsExtensions,
+                cipherSuites,
+                tlsVersions
         )
     }
 
@@ -274,52 +252,52 @@ class ConnectionSpec internal constructor(
     companion object {
         // Most secure but generally supported list.
         private val RESTRICTED_CIPHER_SUITES = arrayOf(
-            // TLSv1.3.
-            CipherSuite.TLS_AES_128_GCM_SHA256,
-            CipherSuite.TLS_AES_256_GCM_SHA384,
-            CipherSuite.TLS_CHACHA20_POLY1305_SHA256,
+                // TLSv1.3.
+                CipherSuite.TLS_AES_128_GCM_SHA256,
+                CipherSuite.TLS_AES_256_GCM_SHA384,
+                CipherSuite.TLS_CHACHA20_POLY1305_SHA256,
 
-            // TLSv1.0, TLSv1.1, TLSv1.2.
-            CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
-            CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
-            CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
-            CipherSuite.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
-            CipherSuite.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,
-            CipherSuite.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256)
+                // TLSv1.0, TLSv1.1, TLSv1.2.
+                CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+                CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+                CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+                CipherSuite.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+                CipherSuite.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,
+                CipherSuite.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256)
 
         // This is nearly equal to the cipher suites supported in Chrome 72, current as of 2019-02-24.
         // See https://tinyurl.com/okhttp-cipher-suites for availability.
         private val APPROVED_CIPHER_SUITES = arrayOf(
-            // TLSv1.3.
-            CipherSuite.TLS_AES_128_GCM_SHA256,
-            CipherSuite.TLS_AES_256_GCM_SHA384,
-            CipherSuite.TLS_CHACHA20_POLY1305_SHA256,
+                // TLSv1.3.
+                CipherSuite.TLS_AES_128_GCM_SHA256,
+                CipherSuite.TLS_AES_256_GCM_SHA384,
+                CipherSuite.TLS_CHACHA20_POLY1305_SHA256,
 
-            // TLSv1.0, TLSv1.1, TLSv1.2.
-            CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
-            CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
-            CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
-            CipherSuite.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
-            CipherSuite.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,
-            CipherSuite.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
+                // TLSv1.0, TLSv1.1, TLSv1.2.
+                CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+                CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+                CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+                CipherSuite.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+                CipherSuite.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,
+                CipherSuite.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
 
-            // Note that the following cipher suites are all on HTTP/2's bad cipher suites list. We'll
-            // continue to include them until better suites are commonly available.
-            CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
-            CipherSuite.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,
-            CipherSuite.TLS_RSA_WITH_AES_128_GCM_SHA256,
-            CipherSuite.TLS_RSA_WITH_AES_256_GCM_SHA384,
-            CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
-            CipherSuite.TLS_RSA_WITH_AES_256_CBC_SHA,
-            CipherSuite.TLS_RSA_WITH_3DES_EDE_CBC_SHA)
+                // Note that the following cipher suites are all on HTTP/2's bad cipher suites list. We'll
+                // continue to include them until better suites are commonly available.
+                CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+                CipherSuite.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,
+                CipherSuite.TLS_RSA_WITH_AES_128_GCM_SHA256,
+                CipherSuite.TLS_RSA_WITH_AES_256_GCM_SHA384,
+                CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+                CipherSuite.TLS_RSA_WITH_AES_256_CBC_SHA,
+                CipherSuite.TLS_RSA_WITH_3DES_EDE_CBC_SHA)
 
         /** A secure TLS connection that requires a recent client platform and a recent server. */
         @JvmField
         val RESTRICTED_TLS = Builder(true)
-            .cipherSuites(*RESTRICTED_CIPHER_SUITES)
-            .tlsVersions(TlsVersion.TLS_1_3, TlsVersion.TLS_1_2)
-            .supportsTlsExtensions(true)
-            .build()
+                .cipherSuites(*RESTRICTED_CIPHER_SUITES)
+                .tlsVersions(TlsVersion.TLS_1_3, TlsVersion.TLS_1_2)
+                .supportsTlsExtensions(true)
+                .build()
 
         /**
          * A modern TLS configuration that works on most client platforms and can connect to most servers.
@@ -327,10 +305,10 @@ class ConnectionSpec internal constructor(
          */
         @JvmField
         val MODERN_TLS = Builder(true)
-            .cipherSuites(*APPROVED_CIPHER_SUITES)
-            .tlsVersions(TlsVersion.TLS_1_3, TlsVersion.TLS_1_2)
-            .supportsTlsExtensions(true)
-            .build()
+                .cipherSuites(*APPROVED_CIPHER_SUITES)
+                .tlsVersions(TlsVersion.TLS_1_3, TlsVersion.TLS_1_2)
+                .supportsTlsExtensions(true)
+                .build()
 
         /**
          * A backwards-compatible fallback configuration that works on obsolete client platforms and can
@@ -339,10 +317,10 @@ class ConnectionSpec internal constructor(
          */
         @JvmField
         val COMPATIBLE_TLS = Builder(true)
-            .cipherSuites(*APPROVED_CIPHER_SUITES)
-            .tlsVersions(TlsVersion.TLS_1_3, TlsVersion.TLS_1_2, TlsVersion.TLS_1_1, TlsVersion.TLS_1_0)
-            .supportsTlsExtensions(true)
-            .build()
+                .cipherSuites(*APPROVED_CIPHER_SUITES)
+                .tlsVersions(TlsVersion.TLS_1_3, TlsVersion.TLS_1_2, TlsVersion.TLS_1_1, TlsVersion.TLS_1_0)
+                .supportsTlsExtensions(true)
+                .build()
 
         /** Unencrypted, unauthenticated connections for `http:` URLs. */
         @JvmField

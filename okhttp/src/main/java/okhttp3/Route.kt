@@ -24,13 +24,11 @@ import java.net.Proxy
  * 每个connection根据一个route来确定连接到服务器的路径。
  * 当客户端建立connection的时候，有多个选项：
  *
- *  * **HTTP proxy:** a proxy server may be explicitly configured for the client.
- * Otherwise the [proxy selector][java.net.ProxySelector] is used. It may return
- * multiple proxies to attempt.
+ *  * **HTTP proxy:* 一个host可能会对应多个代理服务器，通过[ProxySelector]进行选择。
  *  * **IP address:* 不管是通过代理还是直接连接服务器，建立socket连接都需要IP地址。在DNS解析的时候，
  *  DNS服务器可能会针对一个域名返回多个IP地址，在一个IP地址失败的时候，我们就可以尝试另外的。
  *
- * Each route is a specific selection of these options. //每个route都是针对上述这些选项的一个具体化。
+* 每个route都是针对上述这些选项的一个具体化。
  *
  * 从代码来看，一个route，就是一个address、proxy、socketAddress的组合
  */
@@ -45,27 +43,6 @@ class Route(
         @get:JvmName("proxy") val proxy: Proxy,
         @get:JvmName("socketAddress") val socketAddress: InetSocketAddress
 ) {
-
-//    @JvmName("-deprecated_address")
-//    @Deprecated(
-//            message = "moved to val",
-//            replaceWith = ReplaceWith(expression = "address"),
-//            level = DeprecationLevel.ERROR)
-//    fun address(): Address = address
-//
-//    @JvmName("-deprecated_proxy")
-//    @Deprecated(
-//            message = "moved to val",
-//            replaceWith = ReplaceWith(expression = "proxy"),
-//            level = DeprecationLevel.ERROR)
-//    fun proxy(): Proxy = proxy
-//
-//    @JvmName("-deprecated_socketAddress")
-//    @Deprecated(
-//            message = "moved to val",
-//            replaceWith = ReplaceWith(expression = "socketAddress"),
-//            level = DeprecationLevel.ERROR)
-//    fun socketAddress(): InetSocketAddress = socketAddress
 
     /**
      * Returns true if this route tunnels HTTPS through an HTTP proxy.

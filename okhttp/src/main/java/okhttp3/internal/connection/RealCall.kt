@@ -56,42 +56,40 @@ import okio.AsyncTimeout
  */
 class RealCall(
         val client: OkHttpClient,
-        /** The application's original request unadulterated by redirects or auth headers. */
-        val originalRequest: Request,
+        val originalRequest: Request, //也就是开发者通过new Call创建的
         val forWebSocket: Boolean
 ) : Call {
     private val connectionPool: RealConnectionPool = client.connectionPool.delegate //这里有委托的设计思想
 
-    private val eventListener: EventListener = client.eventListenerFactory.create(this)
+    private val eventListener: EventListener = client.eventListenerFactory.create(this) //请求监听
 
     private val timeout = object : AsyncTimeout() {
         override fun timedOut() {
-            cancel()
+            cancel() //超时取消
         }
     }.apply {
         timeout(client.callTimeoutMillis.toLong(), MILLISECONDS)
     }
 
-    /** 在[callStart]方法中初始化. */
+    /** 在[callStart]方法中初始化. 调用栈，用来跟踪问题 */
     private var callStackTrace: Any? = null
 
     /** Finds an exchange to send the next request and receive the next response. */
     private var exchangeFinder: ExchangeFinder? = null
 
-    // Guarded by connectionPool.
-    var connection: RealConnection? = null
-    private var exchange: Exchange? = null
-    private var exchangeRequestDone = false
-    private var exchangeResponseDone = false
+    // 由connectionPool进行管理
+    var connection: RealConnection? = null //执行call的连接
+    private var exchange: Exchange? = null //一次数据交换过程的抽象
+    private var exchangeRequestDone = false //request发送完成
+    private var exchangeResponseDone = false //response接收完成
     private var canceled = false
-    private var timeoutEarlyExit = false
+    private var timeoutEarlyExit = false //超时提前退出
     private var noMoreExchanges = false
 
     // Guarded by this.
     private var executed = false
 
     /**
-     * 这个和exchange的值是一样的，只不过它的影响范围扩大到了network interceptor.
      * This is the same value as [exchange], but scoped to the execution of the network interceptors.
      * The [exchange] field is assigned to null when its streams end, which may be before or after the
      * network interceptors return.
@@ -107,9 +105,9 @@ class RealCall(
     override fun request(): Request = originalRequest
 
     /**
-     * Immediately closes the socket connection if it's currently held. Use this to interrupt an
-     * in-flight request from any thread. It's the caller's responsibility to close the request body
-     * and response body streams; otherwise resources may be leaked.
+     * 立即关闭socket连接。
+     * Use this to interrupt an in-flight request from any thread. It's the caller's responsibility to close the
+     * request body and response body streams; otherwise resources may be leaked.
      *
      * This method is safe to be called concurrently, but provides limited guarantees. If a transport
      * layer connection has been established (such as a HTTP/2 stream) that is terminated. Otherwise
@@ -124,8 +122,9 @@ class RealCall(
             exchangeToCancel = exchange
             connectionToCancel = exchangeFinder?.connectingConnection() ?: connection
         }
-        exchangeToCancel?.cancel() ?: connectionToCancel?.cancel()
-        eventListener.canceled(this)
+        exchangeToCancel?.cancel() ?: connectionToCancel?.cancel() //exchangeToCancel ==
+        // null表示还没到数据交换的这一步，所以直接取消连接，关闭socket连接
+        eventListener.canceled(this) //通知给调用方
     }
 
     override fun isCanceled(): Boolean {
@@ -141,12 +140,12 @@ class RealCall(
         }
         //开始timeout倒计时
         timeout.enter()
-        callStart() //开始处理监听
+        callStart() //回调eventListener的callStart
         try {
-            client.dispatcher.executed(this) // 添加到runningSyncCalls中，下一步直接执行
-            return getResponseWithInterceptorChain()
+            client.dispatcher.executed(this) // 添加到runningSyncCalls中，这一步是没有执行实质性操作的。只是起一个标记的作用。
+            return getResponseWithInterceptorChain() //通过责任链获取响应结果，真正执行请求就是通过它来操作的
         } finally {
-            client.dispatcher.finished(this) // 通知请求完成，把当前call从runningSyncCalls中移除
+            client.dispatcher.finished(this) // 通知请求完成，把当前call从runningSyncCalls中移除；不管是success还是error，都是要finish的。
         }
     }
 
@@ -156,7 +155,7 @@ class RealCall(
             check(!executed) { "Already Executed" }
             executed = true
         }
-        callStart()
+        callStart() //回调通知
         client.dispatcher.enqueue(AsyncCall(responseCallback))
     }
 
@@ -168,27 +167,29 @@ class RealCall(
         eventListener.callStart(this)
     }
 
-
     @Throws(IOException::class)
     internal fun getResponseWithInterceptorChain(): Response {
         // 组装interceptors.
+        // 这里其实可以明显看到interceptor和network interceptor，本质上它们都是拦截器，区别也只是实现的区别而已。
+        // 而network interceptor的所谓可以多次调用，也是只因为它们在retryAndFollowUpInterceptor的底层的原因，因为重试和重定向
+        // 会把请求重新发一遍，response被拦截，request被重新发起一次，会再次走到下面的这些network interceptor，也就是导致它们被多次调用。
         val interceptors = mutableListOf<Interceptor>()
-        interceptors += client.interceptors //所有用户自定义的interceptor
+        interceptors += client.interceptors //所有用户自定义的全程interceptor，拼接在最前面
         interceptors += RetryAndFollowUpInterceptor(client)
-        interceptors += BridgeInterceptor(client.cookieJar)
+        interceptors += BridgeInterceptor(client.cookieJar) //添加一些header
         interceptors += CacheInterceptor(client.cache)
-        interceptors += ConnectInterceptor
+        interceptors += ConnectInterceptor //建立连接；cache在它之前，因为如果cache命中就不用建立连接了，可以节约成本。
         //webSocket禁用networkInterceptor
         if (!forWebSocket) {
-            interceptors += client.networkInterceptors //所有用户自定义的interceptor
+            interceptors += client.networkInterceptors //所有用户自定义的network interceptor，拼接在最后面
         }
-        interceptors += CallServerInterceptor(forWebSocket)
+        interceptors += CallServerInterceptor(forWebSocket) //真正发送请求的
         //责任链模式，创建Interceptor链
         val chain = RealInterceptorChain(
                 call = this,
                 interceptors = interceptors,
                 index = 0,
-                exchange = null,
+                exchange = null, //exchange这里是还没有建构的
                 request = originalRequest,
                 connectTimeoutMillis = client.connectTimeoutMillis,
                 readTimeoutMillis = client.readTimeoutMillis,
@@ -197,32 +198,36 @@ class RealCall(
 
         var calledNoMoreExchanges = false
         try {
-            //启动责任链，注意，这里开始的时候index是0
+            //启动责任链，注意，在上面构造责任链的时候初始index是0，也就是从第一个interceptor开始执行
             val response = chain.proceed(originalRequest)
-            //这里的关闭其实已经处理完了
+            //这里类似于一个递-归的过程：request经过一层层的interceptor处理，一层层往下传递，最后callServerInterceptor和服务器交互完之后又把response
+            // 一层层往回传递，最后得到这个返回的response
+
+            //如果在处理的过程中调用了[call.cancel]，会直接把连接断开，response可能还没被填充，也可能已经被响应填充了，但是都应该关闭
+            //但是这里不会导致crash，因为在execute和enque这两个调用方都做了try catch;这里本身也有一层try catch
             if (isCanceled()) {
                 response.closeQuietly()
                 throw IOException("Canceled")
             }
             return response
         } catch (e: IOException) {
-            calledNoMoreExchanges = true
+            calledNoMoreExchanges = true //主要是给下面的finally代码标记，进行分支选择
             throw noMoreExchanges(e) as Throwable
         } finally {
             if (!calledNoMoreExchanges) {
-                //检查是否要关闭连接
+                //上面的调用没有抛异常才会走到这里来，也就是请求成功了
                 noMoreExchanges(null)
             }
         }
     }
 
     /**
-     * Prepare for a potential trip through all of this call's network interceptors. This prepares to
-     * find an exchange to carry the request.
+     *
+     * 为后面发生在network interceptor中的数据交换做准备。这个方法主要是为request构建一个exchange。
      *
      * 所谓的exchange其实也就是和服务端发生的一次数据交互，OKHTTP把这个过程抽象为了一个类。如果是缓存命中的话，就不需要exchange。
      *
-     * @param newExchangeFinder true if this is not a retry and new routing can be performed.
+     * @param newExchangeFinder 如果这不是一次重试，并且route是可用的，就返回true。
      */
     fun enterNetworkInterceptorExchange(request: Request, newExchangeFinder: Boolean) {
         check(interceptorScopedExchange == null)
@@ -243,16 +248,17 @@ class RealCall(
 
     /**
      *
-     * 找到或者是新建一个可以“池化”的链接来承载接下来要发送的请求和响应
+     * Exchange负责真正的发送和接收请求，和服务端交互。
+     * 这个方法在ConnectInterceptor中调用，用来初始化当前call的exchange。
      *
      * */
     internal fun initExchange(chain: RealInterceptorChain): Exchange {
         synchronized(connectionPool) {
-            check(!noMoreExchanges) { "released" }
-            check(exchange == null)
+            check(!noMoreExchanges) { "released" } //必须还能进行数据交换
+            check(exchange == null) //exchange必须等于null，也就是没被初始化过
         }
 
-        val codec = exchangeFinder!!.find(client, chain)
+        val codec = exchangeFinder!!.find(client, chain) //这里内部会进行连接的建立
         val result = Exchange(this, eventListener, exchangeFinder!!, codec)
         this.interceptorScopedExchange = result
 
@@ -264,21 +270,23 @@ class RealCall(
         }
     }
 
+    /**
+     * 这个方法由exchangeFinder调用，在初始化exchange之前，先初始化connection
+     */
     fun acquireConnectionNoEvents(connection: RealConnection) {
         connectionPool.assertThreadHoldsLock() //必须先获得锁
 
-        check(this.connection == null) //连接不为null
+        check(this.connection == null) //连接必须为null才能往下走
         this.connection = connection
-        connection.calls.add(CallReference(this, callStackTrace)) //加入到当前的连接的call中
+        connection.calls.add(CallReference(this, callStackTrace)) //加入到当前的连接的call中，用弱引用来维持connection
     }
 
     /**
-     * Releases resources held with the request or response of [exchange]. This should be called when
-     * the request completes normally or when it fails due to an exception, in which case [e] should
-     * be non-null.
+     * 释放被[exchange]的request和response持有的资源.
      *
-     * If the exchange was canceled or timed out, this will wrap [e] in an exception that provides
-     * that additional context. Otherwise [e] is returned as-is.
+     * 这个方法在request完成或者抛出异常的时候被调用。
+     *
+     * 如果exchange被取消或者是timeout了，这个方法会接收这个exception
      */
     internal fun <E : IOException?> messageDone(
             exchange: Exchange,
@@ -313,16 +321,19 @@ class RealCall(
         return result
     }
 
+    /**
+     * 当前call不会再有数据交换了，表示已经被执行过了（可能成功了，也可能抛出了异常）
+     */
     internal fun noMoreExchanges(e: IOException?): IOException? {
         synchronized(connectionPool) {
             noMoreExchanges = true
         }
-        return maybeReleaseConnection(e, false)
+        return maybeReleaseConnection(e, false) //考虑释放连接
     }
 
     /**
      * 不再使用的时候释放connection.
-     * 在每次交换完成之后，call通知没有新的交换[Exchange]需要进行，就会调用这个方法。
+     * 在每次交换完成之后，call会通知没有新的交换[Exchange]需要进行，就会调用这个方法。
      *
      * If the call was canceled or timed out, this will wrap [e] in an exception that provides that
      * additional context. Otherwise [e] is returned as-is.
@@ -335,20 +346,22 @@ class RealCall(
         var releasedConnection: Connection?
         val callEnd: Boolean
         synchronized(connectionPool) {
+            //必须要满足force == false或者是exchange == null，才能继续往下走
+            // 1.force == false表示不需要强制释放，所以即使exchange != null也可以继续往下走，因为它不一定会执行释放连接的操作。
             check(!force || exchange == null) { "cannot release connection while it is in use" }
             releasedConnection = this.connection
             socket = if (this.connection != null && exchange == null && (force || noMoreExchanges)) {
-                releaseConnectionNoEvents()
+                releaseConnectionNoEvents() //释放连接
             } else {
                 null
             }
-            if (this.connection != null) releasedConnection = null
+            if (this.connection != null) releasedConnection = null //并没有释放成功
             callEnd = noMoreExchanges && exchange == null
         }
         socket?.closeQuietly()
 
         if (releasedConnection != null) {
-            eventListener.connectionReleased(this, releasedConnection!!)
+            eventListener.connectionReleased(this, releasedConnection!!) //通知调用方
         }
 
         if (callEnd) {
@@ -364,8 +377,8 @@ class RealCall(
     }
 
     /**
-     * Remove this call from the connection's list of allocations. Returns a socket that the caller
-     * should close.
+     * 从connection的allocation列表中移除当前call，并且返回当前connection的socket引用，给外部调用close
+     *
      */
     internal fun releaseConnectionNoEvents(): Socket? {
         connectionPool.assertThreadHoldsLock()
@@ -375,8 +388,8 @@ class RealCall(
 
         val released = this.connection
         released!!.calls.removeAt(index) //从连接的call列表中移除当前请求
-        this.connection = null //GC会回收
-
+        this.connection = null //help GC
+        //没有数据交换了，关闭socket连接
         if (released.calls.isEmpty()) {
             released.idleAtNs = System.nanoTime()
             if (connectionPool.connectionBecameIdle(released)) {
@@ -422,6 +435,12 @@ class RealCall(
         interceptorScopedExchange = null
     }
 
+    /**
+     * 1.请求创建的时候就需要初始化对应的Address，因为需要通过Address来建立connection
+     *   这个方法在创建ExchangeFinder的时候调用。
+     *
+     *   Address所需要的参数由URL和OkHttpClient提供。
+     */
     private fun createAddress(url: HttpUrl): Address {
         var sslSocketFactory: SSLSocketFactory? = null
         var hostnameVerifier: HostnameVerifier? = null
@@ -469,7 +488,7 @@ class RealCall(
             private val responseCallback: Callback
     ) : Runnable {
         @Volatile
-        var callsPerHost = AtomicInteger(0)
+        var callsPerHost = AtomicInteger(0) //每台主机并发的call数量
             private set
 
         /**
@@ -498,7 +517,7 @@ class RealCall(
 
             var success = false
             try {
-                executorService.execute(this) //会调用到下面的run方法
+                executorService.execute(this) //线程池的调度方法，执行run()方法
                 success = true
             } catch (e: RejectedExecutionException) {
                 val ioException = InterruptedIOException("executor rejected")
@@ -513,7 +532,7 @@ class RealCall(
         }
 
         override fun run() {
-            //在当前代码块内使用指定的线程名
+            //暂时修改线程名
             threadName("OkHttp ${redactedUrl()}") {
                 var signalledCallback = false
                 timeout.enter() //开始计算timeout时间

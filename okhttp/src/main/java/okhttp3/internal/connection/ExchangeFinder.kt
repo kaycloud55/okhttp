@@ -52,7 +52,7 @@ import okhttp3.internal.http2.StreamResetException
  */
 class ExchangeFinder(
         private val connectionPool: RealConnectionPool,
-        internal val address: Address,
+        internal val address: Address, //connection和address关联的。
         private val call: RealCall,
         private val eventListener: EventListener
 ) {
@@ -66,11 +66,15 @@ class ExchangeFinder(
     private var otherFailureCount = 0
     private var nextRouteToTry: Route? = null
 
+    /**
+     * 寻找当前可用的exchange
+     */
     fun find(
             client: OkHttpClient,
             chain: RealInterceptorChain
     ): ExchangeCodec {
         try {
+
             val resultConnection = findHealthyConnection(
                     connectTimeout = chain.connectTimeoutMillis,
                     readTimeout = chain.readTimeoutMillis,
@@ -90,7 +94,7 @@ class ExchangeFinder(
     }
 
     /**
-     * 寻找健康的连接. 这个方法会死循环，知道找到健康的连接为止
+     * 寻找健康的连接. 这个方法会死循环（阻塞），直到找到健康的连接为止。
      */
     @Throws(IOException::class)
     private fun findHealthyConnection(
@@ -110,9 +114,9 @@ class ExchangeFinder(
                     connectionRetryEnabled = connectionRetryEnabled
             )
 
-            // 确认当前连接是不是可用的，如果不是就把它从池中剔除，然后继续寻找。
+            // 确认当前连接是不是可用的，如果不是就把它从池中剔除，然后继续寻找，直到找到健康的为止。
             if (!candidate.isHealthy(doExtensiveHealthChecks)) {
-                candidate.noNewExchanges()
+                candidate.noNewExchanges() //标记为noNewExchanges也就是废弃了，后续连接池会自动回收
                 continue
             }
 
@@ -121,7 +125,7 @@ class ExchangeFinder(
     }
 
     /**
-     * 返回连接以托管新的数据流. 会优先从连接池中取已存在的可使用连接
+     * 返回连接以托管新的数据流（exchange）. 会优先从连接池中取已存在的可使用连接
      */
     @Throws(IOException::class)
     private fun findConnection(
@@ -133,35 +137,36 @@ class ExchangeFinder(
     ): RealConnection {
         var foundPooledConnection = false //在连接池中是不是找到了可用的连接
         var result: RealConnection? = null //找到的或者是新创建的连接
-        var selectedRoute: Route? = null //选择的路由策略
+        var selectedRoute: Route? = null //选择的路由策略，请求中可能会配置多个备用的路由策略，比如代理等
         var releasedConnection: RealConnection? //表示这次寻找过程中发现的不可用并被释放了的连接
         val toClose: Socket?
         synchronized(connectionPool) {
             if (call.isCanceled()) throw IOException("Canceled")
             // 1
-            releasedConnection = call.connection //直接尝试复用
+            releasedConnection = call.connection //直接拿当前call的connection，一般情况下是null的
             toClose = if (call.connection != null &&
-                    //不允许在当前连接创建新的exchange或者是和当前url不匹配
+                    //不允许在当前连接创建新的exchange（连接已经被废弃了，将连接池回收）或者是和当前url（不是请求同一个地址的）不匹配
                     (call.connection!!.noNewExchanges || !call.connection!!.supportsUrl(address.url))) {
                 call.releaseConnectionNoEvents() //会释放这个连接，releasedConnection会跟着变成null
             } else {
                 null
             }
-            //上面如果不符合条件的话，call.connection其实已经被release了
-            // 所以能走进去这个条件，说明现在连接可用，releasedConnection = null这个就是正常的
+            //上面如果满足if条件的话，call.connection已经在realseConnectionNoEvents已经被置为null了
+            // 所以能走进去这个条件，说明现在连接可用
             if (call.connection != null) {
-                // 经过上面的判断之后，发现call中自带的connection是可用的
+                // 经过上面的判断之后，发现call中自带的connection是可用的，也没有连接被释放；所以releasedConnection要置为null
                 result = call.connection
                 releasedConnection = null
             }
             //经过上面的步骤之后，如果result还为null，说明call.connection不可用被释放了，需要从池中找一个
             if (result == null) {
-                // The connection hasn't had any problems for this call.
+                // 这个connection没有任何问题。
                 refusedStreamCount = 0
                 connectionShutdownCount = 0
                 otherFailureCount = 0
 
-                // request本身自带的connection不可用，尝试从连接池中寻找一个
+                // request本身自带的connection不可用，尝试从连接池中寻找一个，并赋值给call.connection
+                // 找connection是通过address找的
                 if (connectionPool.callAcquirePooledConnection(address, call, null, false)) {
                     foundPooledConnection = true //成功找到一个
                     result = call.connection
@@ -187,7 +192,7 @@ class ExchangeFinder(
         }
 
         // If we need a route selection, make one. This is a blocking operation.
-        // 路由选择
+        // 上面都没有找到，这里就需要进行路由选择了，。
         var newRouteSelection = false
         if (selectedRoute == null && (routeSelection == null || !routeSelection!!.hasNext())) {
             var localRouteSelector = routeSelector
@@ -225,7 +230,7 @@ class ExchangeFinder(
             }
         }
 
-        // 在第二个回环的时候找到了合适的connection, we're done.
+        // 在第二个回环的时候找到了合适的connection（也就是切换routes找到了合适的）, we're done.
         // 如果能走进去这里，说明上面的2处操作不会被执行
         if (foundPooledConnection) {
             eventListener.connectionAcquired(call, result!!)

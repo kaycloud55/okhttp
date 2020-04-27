@@ -53,60 +53,47 @@ import org.codehaus.mojo.animal_sniffer.IgnoreJRERequirement
  *
  * OkHttpClient这个类，应该是一个全局共享的类。
  * 一般来说，应该创建单例的`OkHttpClient`，并且针对所有的HTTP call都共用这个client，
- * 这样在性能上会有更好的表现——这是因为每个client都维护了自己的连接池和线程池，
- * 复用连接池和线程可以减少创建它们导致的延迟，并且节约内存。
+ * 这样在性能上会有更好的表现.——这是因为每个client都维护了自己的连接池和线程池，
+ * 复用连接池和线程可以减少因为创建连接池和线程池导致的延迟，并且节约内存使用。
  *
- * Use `new OkHttpClient()` to create a shared instance with the default settings:
- *
+ * 基本的使用方法如下：
  * ```
  * // The singleton HTTP client.
  * public final OkHttpClient client = new OkHttpClient();
  * ```
  *
- * Or use `new OkHttpClient.Builder()` to create a shared instance with custom settings:
- *
+ * 或者使用[OkHttpClient.Builder]来创建
  * ```
- * // The singleton HTTP client.
+ * // 单例
  * public final OkHttpClient client = new OkHttpClient.Builder()
  *     .addInterceptor(new HttpLoggingInterceptor())
  *     .cache(new Cache(cacheDir, cacheSize))
  *     .build();
  * ```
  *
- * ## 可以通过`newBuilder()`方法来配置参数，这样也是对client的复用。同样会共享连接池和线程池以及原有的配置。
+ * 可以通过`newBuilder()`方法来重新配置参数，这样也是对client的复用。同样会共享连接池和线程池以及原有的配置
+ * （这里如果是data class的话，应该也可以通过copy来处理）
  *
- * You can customize a shared OkHttpClient instance with [newBuilder]. This builds a client that
- * shares the same connection pool, thread pools, and configuration. Use the builder methods to
- * configure the derived client for a specific purpose.
- *
- * This example shows a call with a short 500 millisecond timeout:
- *
- * ```
+ * 例如，针对某个call设置500毫秒的读超时
  * OkHttpClient eagerClient = client.newBuilder()
  *     .readTimeout(500, TimeUnit.MILLISECONDS)
  *     .build();
  * Response response = eagerClient.newCall(request).execute();
  * ```
  *
- * ## 一般来说不用自己主动去释放线程池和连接池的资源的。在它们变成idle状态的时候会被主动释放的。
- * 当然也可以自己直接手动release。通过调用[ExecutorService.shutdown]来释放dispatcher的执行池子，这会导致后续的任务被拒绝。
- * Shutdown the dispatcher's executor service with [shutdown()][ExecutorService.shutdown]. This will
- * also cause future calls to the client to be rejected.
+ * ## 一般来说不用开发者自己主动去释放线程池和连接池的资源的。在它们变成idle状态的时候会被主动释放。
+ * 当然也可以自己直接手动release。通过调用[ExecutorService.shutdown]来释放dispatcher的线程池，这会导致后续的任务被拒绝。
  *
  * ```
  * client.dispatcher().executorService().shutdown();
  * ```
  *
- * Clear the connection pool with [evictAll()][ConnectionPool.evictAll]. Note that the connection
- * pool's daemon thread may not exit immediately.
- *
+ * 通过[connectionPool.evictAll()]来释放连接池，但是连接池对应的守护线程不一定会马上退出。
  * ```
  * client.connectionPool().evictAll();
  * ```
  *
- * If your client has a cache, call [close()][Cache.close]. Note that it is an error to create calls
- * against a cache that is closed, and doing so will cause the call to crash.
- *
+ * 关闭缓存。不能针对已经关闭的缓存来创建call，会导致crash。
  * ```
  * client.cache().close();
  * ```
@@ -125,7 +112,7 @@ open class OkHttpClient internal constructor(
     @get:JvmName("dispatcher")
     val dispatcher: Dispatcher = builder.dispatcher
 
-    //连接池，这是很重要的部分
+    //连接池，OKHttp的精髓部分
     @get:JvmName("connectionPool")
     val connectionPool: ConnectionPool = builder.connectionPool
 
@@ -134,7 +121,6 @@ open class OkHttpClient internal constructor(
      * the connection is established (if any) until after the response source is selected (either the
      * origin server, cache, or both).
      *
-     * interceptor在call的整个生命周期内都处于激活状态，它会监听Call的整个过程，从连接建立之前到响应命中。它针对的是[Call]
      */
     @get:JvmName("interceptors")
     val interceptors: List<Interceptor> =
@@ -152,7 +138,7 @@ open class OkHttpClient internal constructor(
     val networkInterceptors: List<Interceptor> = builder.networkInterceptors.toImmutableList()
 
     @get:JvmName("eventListenerFactory")
-    val eventListenerFactory: EventListener.Factory = builder.eventListenerFactory
+    val eventListenerFactory: EventListener.Factory = builder.eventListenerFactory // 监听call的生命周期事件的
 
     @get:JvmName("retryOnConnectionFailure")
     val retryOnConnectionFailure: Boolean = builder.retryOnConnectionFailure
@@ -161,10 +147,10 @@ open class OkHttpClient internal constructor(
     val authenticator: Authenticator = builder.authenticator
 
     @get:JvmName("followRedirects")
-    val followRedirects: Boolean = builder.followRedirects
+    val followRedirects: Boolean = builder.followRedirects //是否允许重定向
 
     @get:JvmName("followSslRedirects")
-    val followSslRedirects: Boolean = builder.followSslRedirects
+    val followSslRedirects: Boolean = builder.followSslRedirects //ssl重定向
 
     @get:JvmName("cookieJar")
     val cookieJar: CookieJar = builder.cookieJar
@@ -178,7 +164,7 @@ open class OkHttpClient internal constructor(
     @get:JvmName("proxy")
     val proxy: Proxy? = builder.proxy
 
-    @get:JvmName("proxySelector")
+    @get:JvmName("proxySelector") //代理选择策略
     val proxySelector: ProxySelector =
             when {
                 // Defer calls to ProxySelector.getDefault() because it can throw a SecurityException.
@@ -200,19 +186,19 @@ open class OkHttpClient internal constructor(
         get() = sslSocketFactoryOrNull ?: throw IllegalStateException("CLEARTEXT-only client")
 
     @get:JvmName("x509TrustManager")
-    val x509TrustManager: X509TrustManager?
+    val x509TrustManager: X509TrustManager? //tls证书校验
 
     @get:JvmName("connectionSpecs")
     val connectionSpecs: List<ConnectionSpec> =
-            builder.connectionSpecs
+            builder.connectionSpecs //连接的"规格"，也就是建立连接使用的TLS版本、密码套件等
 
     @get:JvmName("protocols") //支持的协议版本
     val protocols: List<Protocol> = builder.protocols
 
     @get:JvmName("hostnameVerifier")
-    val hostnameVerifier: HostnameVerifier = builder.hostnameVerifier
+    val hostnameVerifier: HostnameVerifier = builder.hostnameVerifier //域名验证器
 
-    @get:JvmName("certificatePinner") //本地自签名证书
+    @get:JvmName("certificatePinner") //证书固定
     val certificatePinner: CertificatePinner
 
     @get:JvmName("certificateChainCleaner")
@@ -240,7 +226,7 @@ open class OkHttpClient internal constructor(
     @get:JvmName("pingIntervalMillis")
     val pingIntervalMillis: Int = builder.pingInterval
 
-    val routeDatabase: RouteDatabase = builder.routeDatabase ?: RouteDatabase() //当前已经建立连接的地址
+    val routeDatabase: RouteDatabase = builder.routeDatabase ?: RouteDatabase() //当前已经建立连接的路径
 
     constructor() : this(Builder())
 

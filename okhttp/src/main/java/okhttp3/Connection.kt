@@ -19,15 +19,13 @@ package okhttp3
 import java.net.Socket
 
 /**
- * HTTP中连接的抽象——也就是socket和stream的抽象。
- * The sockets and streams of an HTTP, HTTPS, or HTTPS+HTTP/2 connection. May be used for multiple
- * HTTP request/response exchanges. Connections may be direct to the origin server or via a proxy.
+ * HTTP、HTTPS或者是HTTPS+HTTP/2中socket和stream的抽象。对应于HTTP的连接，HTTP/2的流。
  *
- * Typically instances of this class are created, connected and exercised automatically by the HTTP
- * client. Applications may use this class to monitor HTTP connections as members of a
- * [connection pool][ConnectionPool].
+ * Connection是同时支持多个exchange的，也就是同时承载多个请求（类似HTTP/2的多路复用的概念）。
  *
- * 连接池中管理的就是这个对象。
+ * Connection可能是直接指向原始服务器的，也可能是指向代理的。
+ *
+ * 连接池中管理的就是这个类的实例。
  *
  * Do not confuse this class with the misnamed `HttpURLConnection`, which isn't so much a connection
  * as a single request/response exchange.
@@ -52,7 +50,7 @@ import java.net.Socket
  * ## 连接复用
  *
  * 每个连接都可以承载大量的stream，具体的数量取决于底层的协议版本。对于HTTP/1.x，每个连接对应0个或1个stream，对于HTTP/2，
- * 每个连接可以承载大量的流，这取决于`SETTINGS_MAX_CONCURRENT_STREAMS`的配置。
+ * 每个连接可以承载大量的流，这取决于`SETTINGS_MAX_CONCURRENT_STREAMS`的配置。（HTTP/2在流的基础上执行请求的多路复用，而Connection是执行流的多路复用）
  * 没有承载流的connection视作空闲的，可以被复用。
  * 重用一个连接的成本比新建低很多，所以链接一般会被keep alive.
  *
@@ -67,7 +65,7 @@ import java.net.Socket
  * Attempting to create new streams on these allocations will fail.
  *
  * Note that an allocation may be released before its stream is completed. This is intended to make
- * bookkeeping easier for the caller: releasing the allocation as soon as the terminal stream has
+ * bookkeeping easier for the caller: releasing the allocation as soon as the terminal stream（控制帧） has
  * been found. But only complete the stream once its data stream has been exhausted.
  */
 interface Connection {

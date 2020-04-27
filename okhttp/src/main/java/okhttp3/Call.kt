@@ -19,8 +19,8 @@ import java.io.IOException
 import okio.Timeout
 
 /**
- * Call就是一个已经准备好执行的请求。
- * Call接口封装了一对request/response（在HTTP/2中是1个流），它只能被执行一次。
+ * Call是对一次请求-响应的完整过程的抽象
+ * Call接口封装了一对request/response（在HTTP/2中是1个流），每个call只能被调用一次
  */
 interface Call : Cloneable {
     /** 当前Call封装的Request. */
@@ -28,7 +28,7 @@ interface Call : Cloneable {
 
     /**
      *
-     * 同步调用，会阻塞当前线程直到有数据响应或者是有error。
+     * 同步调用，会阻塞当前线程直到有数据响应或者是error返回。
      *
      * 为了避免资源泄露，调用方应该主动关闭[Response]，这同时会关闭底层的[ResponseBody]
      *
@@ -44,15 +44,15 @@ interface Call : Cloneable {
      * 注意：传输层成功（接受到HTTP响应码，headers和body）不代表应用层成功，因为可能返回的是404或者500这样的，实际上对应用层来说是请求失败的。
      *
      * @throws IOException 如果请求因为被取消、连接问题、超时等原因不能被成功执行，就会抛出这个异常。这表示的是服务端可能已经接受到了请求，但是这次请求客户端判定为失败了。
-     * @throws IllegalStateException 重复执行一个已经被执行过的请求时
+     * @throws IllegalStateException 重复执行一个已经被执行过的Call时
      */
     @Throws(IOException::class)
     fun execute(): Response
 
     /**
-     * 在未来的某个时间点执行请求。
+     * 在未来的某个时间点执行请求。异步执行，不会阻塞当前线程。
      *
-     * 【dispatcher][OkHttpClient.dispatcher]决定了请求什么时候被执行。通常是立即执行，除非是当前有很多其他请求正在执行。
+     * 【dispatcher][OkHttpClient.dispatcher]决定了请求什么时候被执行。一般来说，除了dispatcher处于特别忙碌的状态下，都是立即执行。
      *
      * 执行完成或者失败之后会回调responseCallback.
      *
@@ -64,8 +64,7 @@ interface Call : Cloneable {
     fun cancel()
 
     /**
-     * Returns true if this call has been either [executed][execute] or [enqueued][enqueue]. It is an
-     * error to execute a call more than once.
+     * 只是判断是否调用了[execute]或者是[enqueue]，不代表call彻底完成了
      */
     fun isExecuted(): Boolean
 

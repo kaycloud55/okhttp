@@ -22,7 +22,7 @@ import java.io.IOException
  * **reactive** authentication after receiving a challenge from either an origin web server or proxy
  * server.
  *
- * ## Preemptive Authentication
+ * ## Preemptive Authentication 抢先认证
  *
  * To make HTTPS calls using an HTTP proxy server OkHttp must first negotiate a connection with
  * the proxy. This proxy connection is called a "TLS Tunnel" and is specified by
@@ -87,7 +87,7 @@ import java.io.IOException
  *     .build();
  * ```
  *
- * The proxy authenticator may implement preemptive authentication, reactive authentication, or
+ * The proxy authenticator may implement preemptive authentication, REACTIVE authentication, or
  * both.
  *
  * Applications may configure OkHttp with an authenticator for origin servers, or proxy servers,

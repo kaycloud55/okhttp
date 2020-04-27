@@ -101,7 +101,7 @@ class Dispatcher constructor() {
         }
 
     /** 等待执行的异步请求队列.
-     *  为什么要使用双端队列？很简单因为网络请求执行顺序跟排队一样，讲究先来后到，新来的请求放队尾，执行请求从对头部取。
+     *  为什么要使用双端队列？很简单因为网络请求执行顺序跟排队一样，讲究先来后到，新来的请求放队尾，执行请求从队列头部取。
      *  说到这LinkedList表示不服，我们知道LinkedList同样也实现了Deque接口，内部是用链表实现的双端队列，那为什么不用LinkedList呢？
      *  实际上这与readyAsyncCalls向runningAsyncCalls转换有关，当执行完一个请求或调用enqueue方法入队新的请求时，
      *  会对readyAsyncCalls进行一次遍历，将那些符合条件的等待请求转移到runningAsyncCalls队列中并交给线程池执行。
@@ -120,6 +120,9 @@ class Dispatcher constructor() {
         this.executorServiceOrNull = executorService
     }
 
+    /**
+     * 插入到ready队列中，然后从执行请求
+     */
     internal fun enqueue(call: AsyncCall) {
         synchronized(this) {
             readyAsyncCalls.add(call)
@@ -127,8 +130,8 @@ class Dispatcher constructor() {
             //这里需要共享一个callsPerHost参数，用来限制一个主机的并发请求数量。这个callsPerHost是个原子类。
             if (!call.call.forWebSocket) {
                 //这两行代码的作用在于把已有的callPerHost字段拿过来赋值到新的Call上
-                val existingCall = findExistingCallWithHost(call.host)
-                if (existingCall != null) call.reuseCallsPerHostFrom(existingCall)
+                val existingCall = findExistingCallWithHost(call.host) //这里针对host做了选择，保证了相同host的callsPerHost的值都是一致的。
+                if (existingCall != null) call.reuseCallsPerHostFrom(existingCall) //这里的复用其实只是复用callPerHost这个值
             }
         }
         promoteAndExecute()
@@ -137,6 +140,8 @@ class Dispatcher constructor() {
     /**
      * 针对每个host，都有并发连接数量的限制。
      * 这里的目的在于复用Call，如果针对当前Host已经有了建立了Call，就会返回已经存在的Call。
+     *
+     * ready和running都算。
      */
     private fun findExistingCallWithHost(host: String): AsyncCall? {
         for (existingCall in runningAsyncCalls) {
@@ -173,19 +178,21 @@ class Dispatcher constructor() {
     private fun promoteAndExecute(): Boolean {
         this.assertThreadDoesntHoldLock()
 
-        val executableCalls = mutableListOf<AsyncCall>()
+        val executableCalls = mutableListOf<AsyncCall>() //可执行的请求
         val isRunning: Boolean
         //锁的是当前Dispatcher
         synchronized(this) {
             val i = readyAsyncCalls.iterator()
             while (i.hasNext()) {
                 val asyncCall = i.next()
-                //注意这里一个是break，一个是continue。区别在于，如果host的call达到上限，可以继续判断，因为下一个call可能是不同的host的。
-                if (runningAsyncCalls.size >= this.maxRequests) break // 已经超过最大并发请求数量，不能继续执行
+                //注意这里一个是break，一个是continue。
+                // 区别在于，达到了dispatcher的最大并发数量，是不能继续发起请求了的。
+                // 但是如果host的call达到上限，可以继续判断，因为下一个call可能是不同的host的，可以继续发送请求
+                if (runningAsyncCalls.size >= this.maxRequests) break // 已经超过Dispatcher最大并发请求数量，不能继续执行
                 if (asyncCall.callsPerHost.get() >= this.maxRequestsPerHost) continue // 已经超过host最大请求数量，不能继续执行
                 //从等待队列中移除
                 i.remove()
-                asyncCall.callsPerHost.incrementAndGet() //这个应该是个volatile的变量
+                asyncCall.callsPerHost.incrementAndGet() //原子操作，因为在构造AsyncCall的时候已经同步了callsPerHost.
                 //放到执行队列中去
                 executableCalls.add(asyncCall)
                 //批量放入
@@ -193,7 +200,7 @@ class Dispatcher constructor() {
             }
             isRunning = runningCallsCount() > 0
         }
-        //针对放入的这一批call，调用执行方法。
+        //发送这一批请求
         for (i in 0 until executableCalls.size) {
             val asyncCall = executableCalls[i]
             asyncCall.executeOn(executorService)
@@ -202,8 +209,8 @@ class Dispatcher constructor() {
         return isRunning
     }
 
-    /** U
-     * `Call#execute`会调用这个方法，把同步请求放入执行队列中。
+    /**
+     * [Call.execute]内部会调用这个方法，把同步请求放入到执行队列中。
      */
     @Synchronized
     internal fun executed(call: RealCall) {
@@ -237,7 +244,7 @@ class Dispatcher constructor() {
             idleCallback = this.idleCallback
         }
 
-        val isRunning = promoteAndExecute() //这里会从ready队列中选中符合条件的call，开始执行
+        val isRunning = promoteAndExecute() //这里会从ready队列中选中符合条件的call，开始执行，可以看到，前一个finish之后会继续从队列中取call执行
         //每个请求完成之后都会进行进行这个检查，用来判断链接是否空闲
         if (!isRunning && idleCallback != null) {
             idleCallback.run()
@@ -262,10 +269,4 @@ class Dispatcher constructor() {
     @Synchronized
     fun runningCallsCount(): Int = runningAsyncCalls.size + runningSyncCalls.size //正在执行的call的数量
 
-//    @JvmName("-deprecated_executorService")
-//    @Deprecated(
-//        message = "moved to val",
-//        replaceWith = ReplaceWith(expression = "executorService"),
-//        level = DeprecationLevel.ERROR)
-//    fun executorService(): ExecutorService = executorService
 }
